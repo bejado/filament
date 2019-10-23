@@ -520,6 +520,29 @@ public class Texture {
     }
 
     /**
+     * Short-lived object similar to PixelBufferDescriptor.
+     */
+    public static class SynchronizedImage {
+        public Long nativeEglImage;
+
+        @Nullable public Object handler;
+        @Nullable public Runnable callback;
+
+        /**
+         * @param handler       An {@link java.util.concurrent.Executor Executor}.
+         *                      On Android this can also be a {@link android.os.Handler Handler}.
+         * @param callback      A callback executed by <code>handler</code> when
+         *                      <code>storage</code> is no longer needed.
+         **/
+       public SynchronizedImage(@NonNull Long nativeEglImage,
+                @Nullable Object handler, @Nullable Runnable callback) {
+            this.nativeEglImage = nativeEglImage;
+            this.handler = handler;
+            this.callback = callback;
+        }
+    }
+
+    /**
      * Options of {@link #generatePrefilterMipmap}
      */
     public static class PrefilterOptions {
@@ -907,6 +930,11 @@ public class Texture {
         nSetExternalImage(getNativeObject(), engine.getNativeObject(), eglImage);
     }
 
+    public void setSynchronizedImage(@NonNull Engine engine, SynchronizedImage image) {
+        nSetSynchronizedImage(getNativeObject(), engine.getNativeObject(),
+                image.nativeEglImage, image.handler, image.callback);
+    }
+
     /**
      * Specifies the external stream to associate with this <code>Texture</code>.
      *
@@ -1088,6 +1116,9 @@ public class Texture {
 
     private static native void nSetExternalImage(
             long nativeObject, long nativeEngine, long eglImage);
+
+    private static native void nSetSynchronizedImage(long nativeObject, long nativeEngine,
+            long eglImage, Object handler, Runnable callback);
 
     private static native void nSetExternalStream(long nativeTexture,
             long nativeEngine, long nativeStream);

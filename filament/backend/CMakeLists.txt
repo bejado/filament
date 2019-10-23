@@ -14,6 +14,7 @@ set(PUBLIC_HDRS
         include/backend/PipelineState.h
         include/backend/PixelBufferDescriptor.h
         include/backend/Platform.h
+        include/backend/SynchronizedImage.h
         include/backend/TargetBufferInfo.h
 )
 

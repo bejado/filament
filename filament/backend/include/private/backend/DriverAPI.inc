@@ -267,6 +267,10 @@ DECL_DRIVER_API_N(setExternalImage,
         backend::TextureHandle, th,
         void*, image)
 
+DECL_DRIVER_API_N(setSynchronizedImage,
+        backend::TextureHandle, th,
+        backend::SynchronizedImage&&, image)
+
 DECL_DRIVER_API_N(setExternalStream,
         backend::TextureHandle, th,
         backend::StreamHandle, sh)

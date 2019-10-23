@@ -1098,8 +1098,8 @@ void OpenGLDriver::destroyTexture(Handle<HwTexture> th) {
             assert(t->gl.rb == 0);
             glDeleteRenderbuffers(1, &t->gl.id);
         }
-        if (t->gl.fence) {
-            glDeleteSync(t->gl.fence);
+        if (t->gl.blitFence) {
+            glDeleteSync(t->gl.blitFence);
         }
         destruct(th, t);
     }
@@ -1726,6 +1726,39 @@ void OpenGLDriver::setExternalImage(Handle<HwTexture> th, void* image) {
     }
 }
 
+void OpenGLDriver::setSynchronizedImage(Handle<HwTexture> th, SynchronizedImage&& image) {
+    GLTexture* t = handle_cast<GLTexture*>(th);
+
+    setExternalImage(th, image.image);
+
+    // Don't allow users to set the same EGLImage twice in a row since it is unclear when to
+    // call the callback in this situation.
+    if (t->gl.syncImage != image.image) {
+        PANIC_LOG("Consecutive Do not set the same image twice.");
+        return;
+    }
+
+    // If replacing an existing synchronized image, its release callback should be triggered when
+    // the GPU finishes all work up to this point.
+    void* existingImage = t->gl.syncImage;
+    if (existingImage) {
+        whenGpuCommandsComplete([this, existingImage]()  {
+            std::vector<SynchronizedImage> images;
+            std::swap(images, mSyncImages);
+            for (auto&& image : images) {
+                if (image.image == existingImage) {
+                    scheduleRelease(std::move(image));
+                } else {
+                    mSyncImages.push_back(std::move(image));
+                }
+            }
+        });
+    }
+
+    t->gl.syncImage = image.image;
+    mSyncImages.push_back(std::move(image));
+}
+
 void OpenGLDriver::setExternalStream(Handle<HwTexture> th, Handle<HwStream> sh) {
     auto& gl = mContext;
     if (gl.ext.OES_EGL_image_external_essl3) {
@@ -2149,6 +2182,9 @@ void OpenGLDriver::updateStream(GLTexture* t, DriverApi* driver) noexcept {
             Platform::ExternalTexture* ets = s->user_thread.infos[s->user_thread.cur].ets;
             mPlatform.reallocateExternalStorage(ets, info.width, info.height, TextureFormat::RGB8);
 
+            // Each read texture (external) has a corollary write texture (2D) and they are
+            // aliased to the same backing image. The shader always uses an external sampler, which
+            // allows it to be agnostic of the synchronization strategy.
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, writeTexture);
             glBindTexture(GL_TEXTURE_EXTERNAL_OES, readTexture);
@@ -2160,7 +2196,7 @@ void OpenGLDriver::updateStream(GLTexture* t, DriverApi* driver) noexcept {
 
         // copy the texture...
 #ifndef NDEBUG
-        if (t->gl.fence) {
+        if (t->gl.blitFence) {
             // we're about to overwrite a buffer that hasn't been consumed
             slog.d << "OpenGLDriver::updateStream(): about to overwrite buffer " <<
                    int(s->user_thread.cur) << " of Texture at " << t << " of Stream at " << s
@@ -2187,12 +2223,12 @@ void OpenGLDriver::updateStream(GLTexture* t, DriverApi* driver) noexcept {
             auto& streams = mExternalStreams;
             if (UTILS_LIKELY(std::find(streams.begin(), streams.end(), t) != streams.end()) &&
                 (t->hwStream == s)) {
-                if (UTILS_UNLIKELY(t->gl.fence)) {
+                if (UTILS_UNLIKELY(t->gl.blitFence)) {
                     // if the texture still has a fence set, destroy it now, so it's not leaked.
-                    glDeleteSync(t->gl.fence);
+                    glDeleteSync(t->gl.blitFence);
                 }
                 t->gl.id = readTexture;
-                t->gl.fence = fence;
+                t->gl.blitFence = fence;
                 s->gl.externalTexture2DId = writeTexture;
             } else {
                 glDeleteSync(fence);

@@ -102,7 +102,8 @@ public:
             mutable GLuint rb = 0;  // multi-sample sidecar renderbuffer
             GLenum target;
             GLenum internalFormat;
-            mutable GLsync fence = nullptr;
+            mutable GLsync blitFence = nullptr; // signals that a blit has finished
+            void* syncImage = nullptr; // opaque pointer to an auto-synchronized EGLImage
 
             // texture parameters go here too
             GLfloat anisotropy = 1.0;
@@ -365,6 +366,7 @@ private:
 
     mutable tsl::robin_map<uint32_t, GLuint> mSamplerMap;
     mutable std::vector<GLTexture*> mExternalStreams;
+    mutable std::vector<backend::SynchronizedImage> mSyncImages;
 
     void attachStream(GLTexture* t, GLStream* stream) noexcept;
     void detachStream(GLTexture* t) noexcept;

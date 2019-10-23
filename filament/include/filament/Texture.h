@@ -22,6 +22,7 @@
 #include <filament/FilamentAPI.h>
 #include <backend/DriverEnums.h>
 #include <backend/PixelBufferDescriptor.h>
+#include <backend/SynchronizedImage.h>
 
 #include <utils/compiler.h>
 
@@ -71,6 +72,7 @@ public:
     static constexpr const size_t BASE_LEVEL = 0;
 
     using PixelBufferDescriptor = backend::PixelBufferDescriptor;    //!< Geometry of a pixel buffer
+    using SynchronizedImage = backend::SynchronizedImage;            //!< External image with callback
     using Sampler = backend::SamplerType;                            //!< Type of sampler
     using InternalFormat = backend::TextureFormat;                   //!< Internal texel format
     using CubemapFace = backend::TextureCubemapFace;                 //!< Cube map faces
@@ -337,6 +339,7 @@ public:
      */
     void setExternalImage(Engine& engine, void* image) noexcept;
 
+    void setSynchronizedImage(Engine& engine, SynchronizedImage&& image) noexcept;
 
     /**
      * Specify the external stream to associate with this Texture. Typically the external

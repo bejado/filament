@@ -168,9 +168,18 @@ protected:
 
     void scheduleDestroySlow(BufferDescriptor&& buffer) noexcept;
 
+    inline void scheduleRelease(SynchronizedImage&& image) noexcept {
+        if (image.hasCallback()) {
+            scheduleReleaseSlow(std::move(image));
+        }
+    }
+
+    void scheduleReleaseSlow(SynchronizedImage&& image) noexcept;
+
 private:
     std::mutex mPurgeLock;
     std::vector<BufferDescriptor> mBufferToPurge;
+    std::vector<SynchronizedImage> mImagesToPurge;
 };
 
 

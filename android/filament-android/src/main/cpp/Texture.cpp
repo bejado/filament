@@ -304,6 +304,18 @@ Java_com_google_android_filament_Texture_nSetExternalImage(JNIEnv*, jclass, jlon
 }
 
 extern "C" JNIEXPORT void JNICALL
+Java_com_google_android_filament_Texture_nSetSynchronizedImage(JNIEnv* env, jclass,
+        jlong nativeTexture, jlong nativeEngine, jlong eglImage, jobject handler, jobject runnable) {
+    Engine* engine = (Engine *) nativeEngine;
+    Texture* texture = (Texture *) nativeTexture;
+
+    auto *callback = JniImageCallback::make(engine, env, handler, runnable, eglImage);
+    Texture::SynchronizedImage syncImage((void*) eglImage, &JniImageCallback::invoke, callback);
+    texture->setSynchronizedImage(*engine, std::move(syncImage));
+}
+
+
+extern "C" JNIEXPORT void JNICALL
 Java_com_google_android_filament_Texture_nSetExternalStream(JNIEnv*, jclass,
         jlong nativeTexture, jlong nativeEngine, jlong nativeStream) {
     Texture *texture = (Texture *) nativeTexture;

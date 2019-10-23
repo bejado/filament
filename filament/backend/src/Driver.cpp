@@ -27,6 +27,7 @@
 
 #include <backend/BufferDescriptor.h>
 #include <backend/PixelBufferDescriptor.h>
+#include <backend/SynchronizedImage.h>
 
 using namespace utils;
 
@@ -43,14 +44,21 @@ DriverBase::~DriverBase() noexcept {
 
 void DriverBase::purge() noexcept {
     std::vector<BufferDescriptor> buffersToPurge;
+    std::vector<SynchronizedImage> imagesToPurge;
     std::unique_lock<std::mutex> lock(mPurgeLock);
     std::swap(buffersToPurge, mBufferToPurge);
+    std::swap(imagesToPurge, mImagesToPurge);
     lock.unlock(); // don't remove this, it ensures mBufferToPurge is destroyed without lock held
 }
 
 void DriverBase::scheduleDestroySlow(BufferDescriptor&& buffer) noexcept {
     std::lock_guard<std::mutex> lock(mPurgeLock);
     mBufferToPurge.push_back(std::move(buffer));
+}
+
+void DriverBase::scheduleReleaseSlow(SynchronizedImage&& image) noexcept {
+    std::lock_guard<std::mutex> lock(mPurgeLock);
+    mImagesToPurge.push_back(std::move(image));
 }
 
 // ------------------------------------------------------------------------------------------------

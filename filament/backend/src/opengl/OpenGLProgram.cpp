@@ -202,11 +202,12 @@ void OpenGLProgram::updateSamplers(OpenGLDriver* gl) noexcept {
                 continue; // this can happen if the SamplerGroup isn't initialized
             }
 
+            // Tell the GPU to wait until any pending blits have completed.
             const GLTexture* const UTILS_RESTRICT t = gl->handle_cast<const GLTexture*>(th);
-            if (UTILS_UNLIKELY(t->gl.fence)) {
-                glWaitSync(t->gl.fence, 0, GL_TIMEOUT_IGNORED);
-                glDeleteSync(t->gl.fence);
-                t->gl.fence = nullptr;
+            if (UTILS_UNLIKELY(t->gl.blitFence)) {
+                glWaitSync(t->gl.blitFence, 0, GL_TIMEOUT_IGNORED);
+                glDeleteSync(t->gl.blitFence);
+                t->gl.blitFence = nullptr;
             }
 
             gl->bindTexture(tmu, t);

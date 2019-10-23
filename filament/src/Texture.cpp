@@ -167,6 +167,12 @@ void FTexture::setExternalImage(FEngine& engine, void* image) noexcept {
     }
 }
 
+void FTexture::setSynchronizedImage(FEngine& engine, SynchronizedImage&& image) noexcept {
+    if (mTarget == Sampler::SAMPLER_EXTERNAL) {
+        engine.getDriverApi().setSynchronizedImage(mHandle, std::move(image));
+    }
+}
+
 void FTexture::setExternalStream(FEngine& engine, FStream* stream) noexcept {
     if (stream) {
         if (!ASSERT_POSTCONDITION_NON_FATAL(mTarget == Sampler::SAMPLER_EXTERNAL,
@@ -500,6 +506,10 @@ void Texture::setImage(Engine& engine, size_t level,
 
 void Texture::setExternalImage(Engine& engine, void* image) noexcept {
     upcast(this)->setExternalImage(upcast(engine), image);
+}
+
+void Texture::setSynchronizedImage(Engine& engine, SynchronizedImage&& image) noexcept {
+    upcast(this)->setSynchronizedImage(upcast(engine), std::move(image));
 }
 
 void Texture::setExternalStream(Engine& engine, Stream* stream) noexcept {

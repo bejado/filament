@@ -436,6 +436,12 @@ void VulkanDriver::createSwapChainR(Handle<HwSwapChain> sch, void* nativeWindow,
     mContext.currentSurface = &sc;
 }
 
+void VulkanDriver::createSwapChainHeadlessR(Handle<HwSwapChain> sch,
+        uint32_t width, uint32_t height, uint64_t flags) {
+    //auto* swapChain = construct_handle<VulkanSwapChain>(mHandleMap, sch);
+    // TODO: implement headless swapchain
+}
+
 void VulkanDriver::createStreamFromTextureIdR(Handle<HwStream> sh, intptr_t externalTextureId,
         uint32_t width, uint32_t height) {
 }
@@ -481,6 +487,10 @@ Handle<HwFence> VulkanDriver::createFenceS() noexcept {
 }
 
 Handle<HwSwapChain> VulkanDriver::createSwapChainS() noexcept {
+    return alloc_handle<VulkanSwapChain, HwSwapChain>();
+}
+
+Handle<HwSwapChain> VulkanDriver::createSwapChainHeadlessS() noexcept {
     return alloc_handle<VulkanSwapChain, HwSwapChain>();
 }
 

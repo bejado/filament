@@ -464,6 +464,10 @@ Handle<HwSwapChain> OpenGLDriver::createSwapChainS() noexcept {
     return Handle<HwSwapChain>( allocateHandle(sizeof(HwSwapChain)) );
 }
 
+Handle<HwSwapChain> OpenGLDriver::createSwapChainHeadlessS() noexcept {
+    return Handle<HwSwapChain>( allocateHandle(sizeof(HwSwapChain)) );
+}
+
 Handle<HwStream> OpenGLDriver::createStreamFromTextureIdS() noexcept {
     return Handle<HwStream>( allocateHandle(sizeof(GLStream)) );
 }
@@ -981,6 +985,14 @@ void OpenGLDriver::createSwapChainR(Handle<HwSwapChain> sch, void* nativeWindow,
 
     HwSwapChain* sc = construct<HwSwapChain>(sch);
     sc->swapChain = mPlatform.createSwapChain(nativeWindow, flags);
+}
+
+void OpenGLDriver::createSwapChainHeadlessR(Handle<HwSwapChain> sch,
+        uint32_t width, uint32_t height, uint64_t flags) {
+    DEBUG_MARKER()
+
+    HwSwapChain* sc = construct<HwSwapChain>(sch);
+    sc->swapChain = mPlatform.createSwapChain(width, height, flags);
 }
 
 void OpenGLDriver::createStreamFromTextureIdR(Handle<HwStream> sh,

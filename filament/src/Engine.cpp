@@ -587,6 +587,14 @@ FSwapChain* FEngine::createSwapChain(void* nativeWindow, uint64_t flags) noexcep
     return p;
 }
 
+FSwapChain* FEngine::createSwapChain(uint32_t width, uint32_t height, uint64_t flags) noexcept {
+    FSwapChain* p = mHeapAllocator.make<FSwapChain>(*this, width, height, flags);
+    if (p) {
+        mSwapChains.insert(p);
+    }
+    return p;
+}
+
 /*
  * Objects created with a component manager
  */
@@ -845,6 +853,10 @@ Fence* Engine::createFence() noexcept {
 
 SwapChain* Engine::createSwapChain(void* nativeWindow, uint64_t flags) noexcept {
     return upcast(this)->createSwapChain(nativeWindow, flags);
+}
+
+SwapChain* Engine::createSwapChain(uint32_t width, uint32_t height, uint64_t flags) noexcept {
+    return upcast(this)->createSwapChain(width, height, flags);
 }
 
 void Engine::destroy(const VertexBuffer* p) {

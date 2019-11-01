@@ -180,6 +180,11 @@ DECL_DRIVER_API_R_N(backend::SwapChainHandle, createSwapChain,
         void*, nativeWindow,
         uint64_t, flags)
 
+DECL_DRIVER_API_R_N(backend::SwapChainHandle, createSwapChainHeadless,
+        uint32_t, width,
+        uint32_t, height,
+        uint64_t, flags)
+
 DECL_DRIVER_API_R_N(backend::StreamHandle, createStreamFromTextureId,
         intptr_t, externalTextureId,
         uint32_t, width,

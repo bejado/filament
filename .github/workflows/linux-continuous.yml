@@ -20,9 +20,9 @@ jobs:
         git config gc.auto 0
         git fetch --tags --prune --progress --no-recurse-submodules origin +${GITHUB_REF}:${GITHUB_REF/refs\//refs\/remote\/}
         git checkout --progress --force ${GITHUB_REF/refs\//refs\/remote\/}
-      - name: Run build script
-        run: |
-          WORKFLOW_OS=`echo \`uname\` | sed "s/Darwin/mac/" | tr [:upper:] [:lower:]`
-          cd build/$WORKFLOW_OS && ./build.sh ${TARGET}
-        env:
-          TARGET: continuous
+    - name: Run build script
+      run: |
+        WORKFLOW_OS=`echo \`uname\` | sed "s/Darwin/mac/" | tr [:upper:] [:lower:]`
+        cd build/$WORKFLOW_OS && ./build.sh ${TARGET}
+      env:
+        TARGET: continuous

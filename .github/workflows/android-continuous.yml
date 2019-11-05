@@ -1,4 +1,4 @@
-name: Linux
+name: Android
 
 on:
   push:
@@ -6,9 +6,9 @@ on:
       - master
 
 jobs:
-  build-linux:
-    name: build-linux
-    runs-on: ubuntu-latest
+  build-ios:
+    name: build-android
+    runs-on: macos-latest
 
     steps:
       - name: Checkout Filament
@@ -22,4 +22,4 @@ jobs:
           git checkout --progress --force ${GITHUB_REF/refs\//refs\/remote\/}
       - name: Run build script
         run: |
-          cd build/linux && ./build.sh continuous
+          cd build/android && ./build.sh continuous

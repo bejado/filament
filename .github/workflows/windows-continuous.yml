@@ -23,4 +23,4 @@ jobs:
         shell: bash
       - name: Run build script
         run: |
-          build\windows\build-github.bat
+          build\windows\build-github.bat continuous

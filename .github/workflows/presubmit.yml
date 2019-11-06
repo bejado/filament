@@ -16,7 +16,8 @@ jobs:
         run: |
           python --version
           pip install PyGithub
-          python -c "import github"
+          # this should fail
+          python -c "import foo"
 
   build-windows:
     name: build-windows
@@ -27,5 +28,6 @@ jobs:
         run: |
           python --version
           pip install PyGithub
-          python -c "import github"
+          # this should fail
+          python -c "import foo"
         shell: bash

@@ -27,7 +27,7 @@ jobs:
           echo "Hello, world" > test-${WORKFLOW_OS}.txt
           pip3 install setuptools
           pip3 install PyGithub
-          build/common/upload-artifacts.py v-test test-${WORKFLOW_OS}.txt
+          python3 build/common/upload-artifacts.py v-test test-${WORKFLOW_OS}.txt
         env:
           GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
 
@@ -50,7 +50,7 @@ jobs:
         run: |
           echo "Hello, world" > test-windows.txt
           pip3 install PyGithub
-          build/common/upload-artifacts.py v-test test-windows.txt
+          python build/common/upload-artifacts.py v-test test-windows.txt
         shell: bash
         env:
           GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}

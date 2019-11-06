@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 from github import Github
 import os, sys
 

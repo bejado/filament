@@ -25,6 +25,7 @@ jobs:
         run: |
           WORKFLOW_OS=`echo \`uname\` | sed "s/Darwin/mac/" | tr [:upper:] [:lower:]`
           echo "Hello, world" > test-${WORKFLOW_OS}.txt
+          pip3 install setuptools
           pip3 install PyGithub
           build/common/upload-artifacts.py v-test test-${WORKFLOW_OS}.txt
         env:
@@ -44,6 +45,7 @@ jobs:
           git config gc.auto 0
           git fetch --tags --prune --progress --no-recurse-submodules origin +${GITHUB_REF}:${GITHUB_REF/refs\//refs\/remote\/}
           git checkout --progress --force ${GITHUB_REF/refs\//refs\/remote\/}
+        shell: bash
       - name: Upload test artifact
         run: |
           echo "Hello, world" > test-windows.txt

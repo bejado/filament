@@ -33,7 +33,7 @@ jobs:
           pip3 install setuptools
           pip3 install PyGithub
           TAG_NAME=${GITHUB_REF##*/}
-          python3 build/common/upload-artifacts.py ${TAG_NAME} out/*.tgz out/*.aar
+          python3 build/common/upload-artifacts.py ${TAG_NAME} out/*.tgz
         env:
           GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
 

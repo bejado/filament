@@ -121,7 +121,7 @@ jobs:
           pip3 install PyGithub
           TAG_NAME=${GITHUB_REF##*/}
           DATE=`date +%Y%m%d`
-          mv filament-release-ios.tgz filament-{$DATE}-ios.tgz
+          mv out/filament-release-ios.tgz out/filament-${DATE}-ios.tgz
           python3 build/common/upload-artifacts.py ${TAG_NAME} out/*.tgz
         env:
           GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}

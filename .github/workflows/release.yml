@@ -33,8 +33,8 @@ jobs:
           pip3 install PyGithub
           TAG_NAME=${GITHUB_REF##*/}
           DATE=`date +%Y%m%d`
-          if [ -f out/filament-release-darwin.tgz ]; then mv out/filament-release-darwin.tgz out/filament-{DATE}-mac.tgz; fi;
-          if [ -f out/filament-release-linux.tgz ]; then mv out/filament-release-linux.tgz out/filament-{DATE}-linux.tgz; fi;
+          if [ -f out/filament-release-darwin.tgz ]; then mv out/filament-release-darwin.tgz out/filament-${DATE}-mac.tgz; fi;
+          if [ -f out/filament-release-linux.tgz ]; then mv out/filament-release-linux.tgz out/filament-${DATE}-linux.tgz; fi;
           python3 build/common/upload-artifacts.py ${TAG_NAME} out/*.tgz
         env:
           GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}

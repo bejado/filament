@@ -29,11 +29,72 @@ jobs:
           cd build/$WORKFLOW_OS && ./build.sh release
       - name: Upload release artifacts
         run: |
-          WORKFLOW_OS=`echo \`uname\` | sed "s/Darwin/mac/" | tr [:upper:] [:lower:]`
           pip3 install setuptools
           pip3 install PyGithub
           TAG_NAME=${GITHUB_REF##*/}
+          DATE=`date +%Y%m%d`
+          if [ -f out/filament-release-darwin.tgz ]; then mv out/filament-release-darwin.tgz out/filament-{DATE}-mac.tgz; fi;
+          if [ -f out/filament-release-linux.tgz ]; then mv out/filament-release-linux.tgz out/filament-{DATE}-linux.tgz; fi;
           python3 build/common/upload-artifacts.py ${TAG_NAME} out/*.tgz
+        env:
+          GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
+
+  build-web:
+    name: build-web
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Filament
+        run: |
+          git version
+          git init $GITHUB_WORKSPACE
+          cd $GITHUB_WORKSPACE
+          git remote add origin https://github.com/google/filament
+          git config gc.auto 0
+          git fetch --tags --prune --progress --no-recurse-submodules origin +${GITHUB_REF}:${GITHUB_REF/refs\//refs\/remote\/}
+          git checkout --progress --force ${GITHUB_REF/refs\//refs\/remote\/}
+      - name: Run build script
+        run: |
+          cd build/web && ./build.sh release
+      - name: Upload release artifacts
+        run: |
+          pip3 install setuptools
+          pip3 install PyGithub
+          TAG_NAME=${GITHUB_REF##*/}
+          DATE=`date +%Y%m%d`
+          mv out/filament-release-web.tgz out/filament-${DATE}-web.tgz
+          python3 build/common/upload-artifacts.py ${TAG_NAME} out/*.tgz
+        env:
+          GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
+
+  build-android:
+    name: build-android
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Filament
+        run: |
+          git version
+          git init $GITHUB_WORKSPACE
+          cd $GITHUB_WORKSPACE
+          git remote add origin https://github.com/google/filament
+          git config gc.auto 0
+          git fetch --tags --prune --progress --no-recurse-submodules origin +${GITHUB_REF}:${GITHUB_REF/refs\//refs\/remote\/}
+          git checkout --progress --force ${GITHUB_REF/refs\//refs\/remote\/}
+      - name: Run build script
+        run: |
+          cd build/android && ./build.sh release
+      - name: Upload release artifacts
+        run: |
+          pip3 install setuptools
+          pip3 install PyGithub
+          TAG_NAME=${GITHUB_REF##*/}
+          DATE=`date +%Y%m%d`
+          mv out/filament-android-release.aar out/filament-${DATE}-android.aar
+          mv out/filamat-android-full-release.aar out/filamat-${DATE}-full-android.aar
+          mv out/filamat-android-lite-release.aar out/filamat-${DATE}-lite-android.aar
+          mv out/gltfio-android-release.aar out/gltfio-${DATE}-android.aar
+          python3 build/common/upload-artifacts.py ${TAG_NAME} out/*.aar
         env:
           GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
 

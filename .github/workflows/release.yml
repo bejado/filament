@@ -98,6 +98,34 @@ jobs:
         env:
           GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
 
+  build-ios:
+    name: build-ios
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Filament
+        run: |
+          git version
+          git init $GITHUB_WORKSPACE
+          cd $GITHUB_WORKSPACE
+          git remote add origin https://github.com/google/filament
+          git config gc.auto 0
+          git fetch --tags --prune --progress --no-recurse-submodules origin +${GITHUB_REF}:${GITHUB_REF/refs\//refs\/remote\/}
+          git checkout --progress --force ${GITHUB_REF/refs\//refs\/remote\/}
+      - name: Run build script
+        run: |
+          cd build/ios && ./build.sh release
+      - name: Upload release artifacts
+        run: |
+          pip3 install setuptools
+          pip3 install PyGithub
+          TAG_NAME=${GITHUB_REF##*/}
+          DATE=`date +%Y%m%d`
+          mv filament-release-ios.tgz filament-{$DATE}-ios.tgz
+          python3 build/common/upload-artifacts.py ${TAG_NAME} out/*.tgz
+        env:
+          GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
+
   build-windows:
     name: build-windows
     runs-on: windows-latest

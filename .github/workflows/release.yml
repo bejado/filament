@@ -57,7 +57,7 @@ jobs:
           echo "Hello, world" > test-windows.txt
           pip3 install PyGithub
           TAG_NAME=${GITHUB_REF##*/}
-          python build/common/upload-artifacts.py ${TAG_NAME} test-${WORKFLOW_OS}.txt
+          python build/common/upload-artifacts.py ${TAG_NAME} test-windows.txt
         shell: bash
         env:
           GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}

@@ -95,5 +95,9 @@ if errorlevel 1 exit /b %errorlevel%
 
 cmake ..\.. -G "Visual Studio 16 2019" -A x64 %flag% -DCMAKE_INSTALL_PREFIX=..\%variant% || exit /b
 cmake --build . %INSTALL% --config %config% -- /m || exit /b
+
+:: Delete the cmake build folder, otherwise we run out of disk space on CI.
+rd /s /q out\cmake-%variant%
+
 cd ..\..
 exit /b 0

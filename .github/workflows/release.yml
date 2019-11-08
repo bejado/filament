@@ -141,10 +141,15 @@ jobs:
           git fetch --tags --prune --progress --no-recurse-submodules origin +${GITHUB_REF}:${GITHUB_REF/refs\//refs\/remote\/}
           git checkout --progress --force ${GITHUB_REF/refs\//refs\/remote\/}
         shell: bash
-      - name: Upload test artifact
+      - name: Run build script
+        run: |
+          build\windows\build-github.bat release
+      - name: Upload release artifacts
         run: |
           pip3 install PyGithub
           TAG_NAME=${GITHUB_REF##*/}
+          DATE=`date +%Y%m%d`
+          mv out/filament-windows.tgz out/filament-${DATE}-windows.tgz
           python build/common/upload-artifacts.py ${TAG_NAME} out/*.tgz
         shell: bash
         env:

@@ -3,11 +3,13 @@ name: Release
 on:
   release:
     types: [created]
+  repository_dispatch
 
 jobs:
   build-desktop:
     name: build-desktop
     runs-on: ${{ matrix.os }}
+    if: github.event_name == 'release' || github.event.client_payload.platform == 'desktop'
 
     strategy:
       matrix:
@@ -42,6 +44,7 @@ jobs:
   build-web:
     name: build-web
     runs-on: macos-latest
+    if: github.event_name == 'release' || github.event.client_payload.platform == 'web'
 
     steps:
       - name: Checkout Filament
@@ -70,6 +73,7 @@ jobs:
   build-android:
     name: build-android
     runs-on: macos-latest
+    if: github.event_name == 'release' || github.event.client_payload.platform == 'android'
 
     steps:
       - name: Checkout Filament
@@ -101,6 +105,7 @@ jobs:
   build-ios:
     name: build-ios
     runs-on: macos-latest
+    if: github.event_name == 'release' || github.event.client_payload.platform == 'ios'
 
     steps:
       - name: Checkout Filament
@@ -129,6 +134,7 @@ jobs:
   build-windows:
     name: build-windows
     runs-on: windows-latest
+    if: github.event_name == 'release' || github.event.client_payload.platform == 'windows'
 
     steps:
       - name: Checkout Filament

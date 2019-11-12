@@ -1,5 +1,9 @@
 name: Release
 
+# This Workflow can be triggered two ways:
+# 1. A GitHub release is created (using the GitHub web UI). This triggers all of the platforms to build and upload assets.
+# 2. A repository_dispatch API event is sent. This triggers a build for only the platform specified in the dispatch event.
+
 env:
   RELEASE_TAG: ${{ github.event.client_payload.release_tag }}
 
@@ -21,13 +25,13 @@ jobs:
     steps:
       - name: Checkout Filament
         run: |
-          git version
           git init $GITHUB_WORKSPACE
           cd $GITHUB_WORKSPACE
           git remote add origin https://github.com/bejado/filament
           git config gc.auto 0
-          git fetch --tags --prune --progress --no-recurse-submodules origin +${GITHUB_REF}:${GITHUB_REF/refs\//refs\/remote\/}
-          git checkout --progress --force ${GITHUB_REF/refs\//refs\/remote\/}
+          TAG_NAME=${RELEASE_TAG-${GITHUB_REF}}
+          git fetch --progress --no-recurse-submodules origin +${TAG_NAME}:${TAG_NAME}
+          git checkout --progress --force ${TAG_NAME}
       - name: Run build script
         run: |
           WORKFLOW_OS=`echo \`uname\` | sed "s/Darwin/mac/" | tr [:upper:] [:lower:]`
@@ -52,13 +56,13 @@ jobs:
     steps:
       - name: Checkout Filament
         run: |
-          git version
           git init $GITHUB_WORKSPACE
           cd $GITHUB_WORKSPACE
           git remote add origin https://github.com/bejado/filament
           git config gc.auto 0
-          git fetch --tags --prune --progress --no-recurse-submodules origin +${GITHUB_REF}:${GITHUB_REF/refs\//refs\/remote\/}
-          git checkout --progress --force ${GITHUB_REF/refs\//refs\/remote\/}
+          TAG_NAME=${RELEASE_TAG-${GITHUB_REF}}
+          git fetch --progress --no-recurse-submodules origin +${TAG_NAME}:${TAG_NAME}
+          git checkout --progress --force ${TAG_NAME}
       - name: Run build script
         run: |
           cd build/web && ./build.sh release
@@ -81,13 +85,13 @@ jobs:
     steps:
       - name: Checkout Filament
         run: |
-          git version
           git init $GITHUB_WORKSPACE
           cd $GITHUB_WORKSPACE
           git remote add origin https://github.com/bejado/filament
           git config gc.auto 0
-          git fetch --tags --prune --progress --no-recurse-submodules origin +${GITHUB_REF}:${GITHUB_REF/refs\//refs\/remote\/}
-          git checkout --progress --force ${GITHUB_REF/refs\//refs\/remote\/}
+          TAG_NAME=${RELEASE_TAG-${GITHUB_REF}}
+          git fetch --progress --no-recurse-submodules origin +${TAG_NAME}:${TAG_NAME}
+          git checkout --progress --force ${TAG_NAME}
       - name: Run build script
         run: |
           cd build/android && ./build.sh release
@@ -113,13 +117,13 @@ jobs:
     steps:
       - name: Checkout Filament
         run: |
-          git version
           git init $GITHUB_WORKSPACE
           cd $GITHUB_WORKSPACE
           git remote add origin https://github.com/bejado/filament
           git config gc.auto 0
-          git fetch --tags --prune --progress --no-recurse-submodules origin +${GITHUB_REF}:${GITHUB_REF/refs\//refs\/remote\/}
-          git checkout --progress --force ${GITHUB_REF/refs\//refs\/remote\/}
+          TAG_NAME=${RELEASE_TAG-${GITHUB_REF}}
+          git fetch --progress --no-recurse-submodules origin +${TAG_NAME}:${TAG_NAME}
+          git checkout --progress --force ${TAG_NAME}
       - name: Run build script
         run: |
           cd build/ios && ./build.sh release
@@ -146,9 +150,9 @@ jobs:
           git init $GITHUB_WORKSPACE
           cd $GITHUB_WORKSPACE
           git remote add origin https://github.com/bejado/filament
-          git config gc.auto 0
-          git fetch --tags --prune --progress --no-recurse-submodules origin +${GITHUB_REF}:${GITHUB_REF/refs\//refs\/remote\/}
-          git checkout --progress --force ${GITHUB_REF/refs\//refs\/remote\/}
+          TAG_NAME=${RELEASE_TAG-${GITHUB_REF}}
+          git fetch --progress --no-recurse-submodules origin +${TAG_NAME}:${TAG_NAME}
+          git checkout --progress --force ${TAG_NAME}
         shell: bash
       - name: Run build script
         run: |

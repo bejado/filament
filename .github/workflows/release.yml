@@ -23,15 +23,12 @@ jobs:
         os: [macos-latest, ubuntu-latest]
 
     steps:
-      - name: Checkout Filament
-        run: |
-          git init $GITHUB_WORKSPACE
-          cd $GITHUB_WORKSPACE
-          git remote add origin https://github.com/bejado/filament
-          git config gc.auto 0
-          TAG_NAME=${RELEASE_TAG-${GITHUB_REF}}
-          git fetch --progress --no-recurse-submodules origin +${TAG_NAME}:${TAG_NAME}
-          git checkout --progress --force ${TAG_NAME}
+      - uses: actions/checkout@v1.0.0
+        if: github.event_name == 'release'
+      - uses: actions/checkout@v1.0.0
+        if: github.event_name == 'repository_dispatch'
+        with:
+          ref: ${{ github.event.client_payload.release_tag }}
       - name: Run build script
         run: |
           WORKFLOW_OS=`echo \`uname\` | sed "s/Darwin/mac/" | tr [:upper:] [:lower:]`
@@ -54,15 +51,12 @@ jobs:
     if: github.event_name == 'release' || github.event.client_payload.platform == 'web'
 
     steps:
-      - name: Checkout Filament
-        run: |
-          git init $GITHUB_WORKSPACE
-          cd $GITHUB_WORKSPACE
-          git remote add origin https://github.com/bejado/filament
-          git config gc.auto 0
-          TAG_NAME=${RELEASE_TAG-${GITHUB_REF}}
-          git fetch --progress --no-recurse-submodules origin +${TAG_NAME}:${TAG_NAME}
-          git checkout --progress --force ${TAG_NAME}
+      - uses: actions/checkout@v1.0.0
+        if: github.event_name == 'release'
+      - uses: actions/checkout@v1.0.0
+        if: github.event_name == 'repository_dispatch'
+        with:
+          ref: ${{ github.event.client_payload.release_tag }}
       - name: Run build script
         run: |
           cd build/web && ./build.sh release
@@ -83,15 +77,12 @@ jobs:
     if: github.event_name == 'release' || github.event.client_payload.platform == 'android'
 
     steps:
-      - name: Checkout Filament
-        run: |
-          git init $GITHUB_WORKSPACE
-          cd $GITHUB_WORKSPACE
-          git remote add origin https://github.com/bejado/filament
-          git config gc.auto 0
-          TAG_NAME=${RELEASE_TAG-${GITHUB_REF}}
-          git fetch --progress --no-recurse-submodules origin +${TAG_NAME}:${TAG_NAME}
-          git checkout --progress --force ${TAG_NAME}
+      - uses: actions/checkout@v1.0.0
+        if: github.event_name == 'release'
+      - uses: actions/checkout@v1.0.0
+        if: github.event_name == 'repository_dispatch'
+        with:
+          ref: ${{ github.event.client_payload.release_tag }}
       - name: Run build script
         run: |
           cd build/android && ./build.sh release
@@ -115,15 +106,12 @@ jobs:
     if: github.event_name == 'release' || github.event.client_payload.platform == 'ios'
 
     steps:
-      - name: Checkout Filament
-        run: |
-          git init $GITHUB_WORKSPACE
-          cd $GITHUB_WORKSPACE
-          git remote add origin https://github.com/bejado/filament
-          git config gc.auto 0
-          TAG_NAME=${RELEASE_TAG-${GITHUB_REF}}
-          git fetch --progress --no-recurse-submodules origin +${TAG_NAME}:${TAG_NAME}
-          git checkout --progress --force ${TAG_NAME}
+      - uses: actions/checkout@v1.0.0
+        if: github.event_name == 'release'
+      - uses: actions/checkout@v1.0.0
+        if: github.event_name == 'repository_dispatch'
+        with:
+          ref: ${{ github.event.client_payload.release_tag }}
       - name: Run build script
         run: |
           cd build/ios && ./build.sh release
@@ -144,16 +132,12 @@ jobs:
     if: github.event_name == 'release' || github.event.client_payload.platform == 'windows'
 
     steps:
-      - name: Checkout Filament
-        run: |
-          git version
-          git init $GITHUB_WORKSPACE
-          cd $GITHUB_WORKSPACE
-          git remote add origin https://github.com/bejado/filament
-          TAG_NAME=${RELEASE_TAG-${GITHUB_REF}}
-          git fetch --progress --no-recurse-submodules origin +${TAG_NAME}:${TAG_NAME}
-          git checkout --progress --force ${TAG_NAME}
-        shell: bash
+      - uses: actions/checkout@v1.0.0
+        if: github.event_name == 'release'
+      - uses: actions/checkout@v1.0.0
+        if: github.event_name == 'repository_dispatch'
+        with:
+          ref: ${{ github.event.client_payload.release_tag }}
       - name: Run build script
         run: |
           build\windows\build-github.bat release

@@ -30,15 +30,7 @@ jobs:
           TAG=${REF##*/}
           echo ::set-output name=ref::${REF}
           echo ::set-output name=tag::${TAG}
-      - name: Echo Git Ref
-        run: |
-          echo REF: ${REF}
-          echo TAG: ${TAG}
-        env:
-          REF: ${{ steps.git_ref.outputs.ref }}
-          TAG: ${{ steps.git_ref.outputs.tag }}
       - uses: actions/checkout@v1.0.0
-        if: github.event_name == 'repository_dispatch'
         with:
           ref: ${{ steps.git_ref.outputs.ref }}
       - name: Run build script
@@ -63,12 +55,16 @@ jobs:
     if: github.event_name == 'release' || github.event.client_payload.platform == 'web'
 
     steps:
+      - name: Decide Git Ref
+        id: git_ref
+        run: |
+          REF=${RELEASE_TAG:-${GITHUB_REF}}
+          TAG=${REF##*/}
+          echo ::set-output name=ref::${REF}
+          echo ::set-output name=tag::${TAG}
       - uses: actions/checkout@v1.0.0
-        if: github.event_name == 'release'
-      - uses: actions/checkout@v1.0.0
-        if: github.event_name == 'repository_dispatch'
         with:
-          ref: ${{ github.event.client_payload.release_tag }}
+          ref: ${{ steps.git_ref.outputs.ref }}
       - name: Run build script
         run: |
           cd build/web && ./build.sh release
@@ -76,11 +72,11 @@ jobs:
         run: |
           pip3 install setuptools
           pip3 install PyGithub
-          TAG_NAME=${RELEASE_TAG:-${GITHUB_REF##*/}}
           DATE=`date +%Y%m%d`
           mv out/filament-release-web.tgz out/filament-${DATE}-web.tgz
-          python3 build/common/upload-artifacts.py ${TAG_NAME} out/*.tgz
+          python3 build/common/upload-artifacts.py ${TAG} out/*.tgz
         env:
+          TAG: ${{ steps.git_ref.outputs.tag }}
           GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
 
   build-android:
@@ -89,12 +85,16 @@ jobs:
     if: github.event_name == 'release' || github.event.client_payload.platform == 'android'
 
     steps:
+      - name: Decide Git Ref
+        id: git_ref
+        run: |
+          REF=${RELEASE_TAG:-${GITHUB_REF}}
+          TAG=${REF##*/}
+          echo ::set-output name=ref::${REF}
+          echo ::set-output name=tag::${TAG}
       - uses: actions/checkout@v1.0.0
-        if: github.event_name == 'release'
-      - uses: actions/checkout@v1.0.0
-        if: github.event_name == 'repository_dispatch'
         with:
-          ref: ${{ github.event.client_payload.release_tag }}
+          ref: ${{ steps.git_ref.outputs.ref }}
       - name: Run build script
         run: |
           cd build/android && ./build.sh release
@@ -102,14 +102,14 @@ jobs:
         run: |
           pip3 install setuptools
           pip3 install PyGithub
-          TAG_NAME=${RELEASE_TAG:-${GITHUB_REF##*/}}
           DATE=`date +%Y%m%d`
           mv out/filament-android-release.aar out/filament-${DATE}-android.aar
           mv out/filamat-android-full-release.aar out/filamat-${DATE}-full-android.aar
           mv out/filamat-android-lite-release.aar out/filamat-${DATE}-lite-android.aar
           mv out/gltfio-android-release.aar out/gltfio-${DATE}-android.aar
-          python3 build/common/upload-artifacts.py ${TAG_NAME} out/*.aar
+          python3 build/common/upload-artifacts.py ${TAG} out/*.aar
         env:
+          TAG: ${{ steps.git_ref.outputs.tag }}
           GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
 
   build-ios:
@@ -118,12 +118,16 @@ jobs:
     if: github.event_name == 'release' || github.event.client_payload.platform == 'ios'
 
     steps:
+      - name: Decide Git Ref
+        id: git_ref
+        run: |
+          REF=${RELEASE_TAG:-${GITHUB_REF}}
+          TAG=${REF##*/}
+          echo ::set-output name=ref::${REF}
+          echo ::set-output name=tag::${TAG}
       - uses: actions/checkout@v1.0.0
-        if: github.event_name == 'release'
-      - uses: actions/checkout@v1.0.0
-        if: github.event_name == 'repository_dispatch'
         with:
-          ref: ${{ github.event.client_payload.release_tag }}
+          ref: ${{ steps.git_ref.outputs.ref }}
       - name: Run build script
         run: |
           cd build/ios && ./build.sh release
@@ -131,11 +135,11 @@ jobs:
         run: |
           pip3 install setuptools
           pip3 install PyGithub
-          TAG_NAME=${RELEASE_TAG:-${GITHUB_REF##*/}}
           DATE=`date +%Y%m%d`
           mv out/filament-release-ios.tgz out/filament-${DATE}-ios.tgz
-          python3 build/common/upload-artifacts.py ${TAG_NAME} out/*.tgz
+          python3 build/common/upload-artifacts.py ${TAG} out/*.tgz
         env:
+          TAG: ${{ steps.git_ref.outputs.tag }}
           GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
 
   build-windows:
@@ -144,22 +148,27 @@ jobs:
     if: github.event_name == 'release' || github.event.client_payload.platform == 'windows'
 
     steps:
+      - name: Decide Git Ref
+        id: git_ref
+        run: |
+          REF=${RELEASE_TAG:-${GITHUB_REF}}
+          TAG=${REF##*/}
+          echo ::set-output name=ref::${REF}
+          echo ::set-output name=tag::${TAG}
+        shell: bash
       - uses: actions/checkout@v1.0.0
-        if: github.event_name == 'release'
-      - uses: actions/checkout@v1.0.0
-        if: github.event_name == 'repository_dispatch'
         with:
-          ref: ${{ github.event.client_payload.release_tag }}
+          ref: ${{ steps.git_ref.outputs.ref }}
       - name: Run build script
         run: |
           build\windows\build-github.bat release
       - name: Upload release artifacts
         run: |
           pip3 install PyGithub
-          TAG_NAME=${RELEASE_TAG:-${GITHUB_REF##*/}}
           DATE=`date +%Y%m%d`
           mv out/filament-windows.tgz out/filament-${DATE}-windows.tgz
-          python build/common/upload-artifacts.py ${TAG_NAME} out/*.tgz
+          python build/common/upload-artifacts.py ${TAG} out/*.tgz
         shell: bash
         env:
+          TAG: ${{ steps.git_ref.outputs.tag }}
           GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}

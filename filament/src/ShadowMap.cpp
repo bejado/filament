@@ -179,14 +179,18 @@ void ShadowMap::render(DriverApi& driver, RenderPass& pass, FView& view) noexcep
     pass.setCamera(cameraInfo);
 
     FView::Range visibleRenderables = view.getVisibleShadowCasters();
-    pass.setGeometry(scene, visibleRenderables);
+    pass.setGeometry(scene.getRenderableData(), visibleRenderables, scene.getRenderableUBO());
 
     view.updatePrimitivesLod(engine, cameraInfo, scene.getRenderableData(), visibleRenderables);
     view.prepareCamera(cameraInfo, viewport);
     view.commitUniforms(driver);
 
     pass.overridePolygonOffset(&mPolygonOffset);
-    pass.appendSortedCommands(RenderPass::SHADOW);
+
+    auto curr = pass.getCommands().end();
+    pass.appendCommands(RenderPass::SHADOW);
+    pass.sortCommands(curr);
+
     pass.execute("Shadow map Pass", getRenderTarget(), params,
             pass.getCommands().begin(), pass.getCommands().end());
     pass.overridePolygonOffset(nullptr);

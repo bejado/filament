@@ -124,6 +124,9 @@ DECL_DRIVER_API_N(endFrame,
 // can start rendering. e.g. correspond to glFlush() for a GLES driver.
 DECL_DRIVER_API_0(flush)
 
+// flush and wait for the effects to be done
+DECL_DRIVER_API_0(finish)
+
 /*
  * Creating driver objects
  * -----------------------
@@ -180,6 +183,11 @@ DECL_DRIVER_API_R_N(backend::SwapChainHandle, createSwapChain,
         void*, nativeWindow,
         uint64_t, flags)
 
+DECL_DRIVER_API_R_N(backend::SwapChainHandle, createSwapChainHeadless,
+        uint32_t, width,
+        uint32_t, height,
+        uint64_t, flags)
+
 DECL_DRIVER_API_R_N(backend::StreamHandle, createStreamFromTextureId,
         intptr_t, externalTextureId,
         uint32_t, width,
@@ -207,7 +215,9 @@ DECL_DRIVER_API_N(destroyStream,          backend::StreamHandle, sh)
  */
 
 DECL_DRIVER_API_SYNCHRONOUS_0(void, terminate)
-DECL_DRIVER_API_SYNCHRONOUS_N(backend::StreamHandle, createStream, void*, stream)
+DECL_DRIVER_API_SYNCHRONOUS_N(backend::StreamHandle, createStreamNative, void*, stream)
+DECL_DRIVER_API_SYNCHRONOUS_0(backend::StreamHandle, createStreamAcquired)
+DECL_DRIVER_API_SYNCHRONOUS_N(void, setAcquiredImage, backend::StreamHandle, stream, void*, image, backend::StreamCallback, cb, void*, userData)
 DECL_DRIVER_API_SYNCHRONOUS_N(void, setStreamDimensions, backend::StreamHandle, stream, uint32_t, width, uint32_t, height)
 DECL_DRIVER_API_SYNCHRONOUS_N(int64_t, getStreamTimestamp, backend::StreamHandle, stream)
 DECL_DRIVER_API_SYNCHRONOUS_N(void, updateStreams, backend::DriverApi*, driver)

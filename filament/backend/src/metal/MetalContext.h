@@ -79,11 +79,15 @@ struct MetalContext {
     // Surface-related properties.
     MetalSwapChain* currentSurface = nullptr;
     id<CAMetalDrawable> currentDrawable = nullptr;
+    id<MTLTexture> headlessDrawable = nil;
     MTLPixelFormat currentSurfacePixelFormat = MTLPixelFormatInvalid;
     MTLPixelFormat currentDepthPixelFormat = MTLPixelFormatInvalid;
 
     // External textures.
     CVMetalTextureCacheRef textureCache = nullptr;
+
+    // Empty texture used to prevent GPU errors when a sampler has been bound without a texture.
+    id<MTLTexture> emptyTexture = nil;
 
     MetalBlitter* blitter = nullptr;
 
@@ -95,11 +99,14 @@ struct MetalContext {
 };
 
 // Acquire the current surface's CAMetalDrawable for the current frame if it has not already been
-// acquired.
-// This method returns the drawable and stores it in the context's currentDrawable field.
-id<CAMetalDrawable> acquireDrawable(MetalContext* context);
+// acquired. This method stores it in the context's currentDrawable field and returns the
+// drawable's texture.
+// For headless swapchains a new texture is created.
+id<MTLTexture> acquireDrawable(MetalContext* context);
 
 id<MTLCommandBuffer> acquireCommandBuffer(MetalContext* context);
+
+id<MTLTexture> getOrCreateEmptyTexture(MetalContext* context);
 
 } // namespace metal
 } // namespace backend

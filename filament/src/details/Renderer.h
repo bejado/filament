@@ -83,6 +83,10 @@ public:
     void readPixels(uint32_t xoffset, uint32_t yoffset, uint32_t width, uint32_t height,
             backend::PixelBufferDescriptor&& buffer);
 
+    void readPixels(FRenderTarget* renderTarget,
+            uint32_t xoffset, uint32_t yoffset, uint32_t width, uint32_t height,
+            backend::PixelBufferDescriptor&& buffer);
+
     // Clean-up everything, this is typically called when the client calls Engine::destroyRenderer()
     void terminate(FEngine& engine);
 
@@ -91,6 +95,10 @@ private:
     using Command = RenderPass::Command;
 
     backend::Handle<backend::HwRenderTarget> getRenderTarget(FView& view) const noexcept;
+
+    void readPixels(backend::Handle<backend::HwRenderTarget> renderTargetHandle,
+            uint32_t xoffset, uint32_t yoffset, uint32_t width, uint32_t height,
+            backend::PixelBufferDescriptor&& buffer);
 
     RenderPass::CommandTypeFlags getCommandType(View::DepthPrepass prepass) const noexcept;
 
@@ -102,8 +110,8 @@ private:
         return mCommandsHighWatermark * sizeof(RenderPass::Command);
     }
 
-    backend::TextureFormat getHdrFormat(const View& view) const noexcept;
-    backend::TextureFormat getLdrFormat() const noexcept;
+    backend::TextureFormat getHdrFormat(const View& view, bool translucent) const noexcept;
+    backend::TextureFormat getLdrFormat(bool translucent) const noexcept;
 
     using clock = std::chrono::steady_clock;
     using Epoch = clock::time_point;

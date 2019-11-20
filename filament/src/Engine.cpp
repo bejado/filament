@@ -315,20 +315,32 @@ void FEngine::shutdown() {
     }
     cleanupResourceList(mFences);
 
-    // There might be commands added by the terminate() calls
-    flushCommandBuffer(mCommandBufferQueue);
-    if (!UTILS_HAS_THREADING) {
-        execute();
-    }
-
     /*
-     * terminate the rendering engine
+     * Shutdown the backend...
      */
 
+    // There might be commands added by the terminate() calls, so we need to flush all commands
+    // up to this point. After flushCommandBuffer() is called, all pending commands are guaranteed
+    // to be executed before the driver thread exits.
+    flushCommandBuffer(mCommandBufferQueue);
+
+    // now wait for all pending commands to be executed and the thread to exit
     mCommandBufferQueue.requestExit();
-    if (UTILS_HAS_THREADING) {
+    if (!UTILS_HAS_THREADING) {
+        execute();
+        getDriverApi().terminate();
+    } else {
         mDriverThread.join();
+
     }
+
+    // Finally, call user callbacks that might have been scheduled.
+    // These callbacks CANNOT call driver APIs.
+    getDriver().purge();
+
+    /*
+     * Terminate the JobSystem...
+     */
 
     // detach this thread from the jobsystem
     mJobSystem.emancipate();
@@ -379,7 +391,15 @@ void FEngine::flush() {
 }
 
 void FEngine::flushAndWait() {
-    FFence::waitAndDestroy(FEngine::createFence(FFence::Type::SOFT), FFence::Mode::FLUSH);
+    // enqueue finish command -- this will stall in the driver until the GPU is done
+    getDriverApi().finish();
+
+    // then create a fence that will trigger when we're past the finish() above
+    FFence::waitAndDestroy(
+            FEngine::createFence(FFence::Type::SOFT), FFence::Mode::FLUSH);
+
+    // finally, execute callbacks that might have been scheduled
+    getDriver().purge();
 }
 
 // -----------------------------------------------------------------------------------------------
@@ -438,6 +458,9 @@ int FEngine::loop() {
     }
 #endif
 
+    JobSystem::setThreadName("FEngine::loop");
+    JobSystem::setThreadPriority(JobSystem::Priority::DISPLAY);
+
     mDriver = platform->createDriver(mSharedGLContext);
     mDriverBarrier.latch();
     if (UTILS_UNLIKELY(!mDriver)) {
@@ -445,9 +468,6 @@ int FEngine::loop() {
         // been logged.
         return 0;
     }
-
-    JobSystem::setThreadName("FEngine::loop");
-    JobSystem::setThreadPriority(JobSystem::Priority::DISPLAY);
 
     // We use the highest affinity bit, assuming this is a Big core in a  big.little
     // configuration. This is also a core not used by the JobSystem.
@@ -581,6 +601,14 @@ FFence* FEngine::createFence(FFence::Type type) noexcept {
 
 FSwapChain* FEngine::createSwapChain(void* nativeWindow, uint64_t flags) noexcept {
     FSwapChain* p = mHeapAllocator.make<FSwapChain>(*this, nativeWindow, flags);
+    if (p) {
+        mSwapChains.insert(p);
+    }
+    return p;
+}
+
+FSwapChain* FEngine::createSwapChain(uint32_t width, uint32_t height, uint64_t flags) noexcept {
+    FSwapChain* p = mHeapAllocator.make<FSwapChain>(*this, width, height, flags);
     if (p) {
         mSwapChains.insert(p);
     }
@@ -845,6 +873,10 @@ Fence* Engine::createFence() noexcept {
 
 SwapChain* Engine::createSwapChain(void* nativeWindow, uint64_t flags) noexcept {
     return upcast(this)->createSwapChain(nativeWindow, flags);
+}
+
+SwapChain* Engine::createSwapChain(uint32_t width, uint32_t height, uint64_t flags) noexcept {
+    return upcast(this)->createSwapChain(width, height, flags);
 }
 
 void Engine::destroy(const VertexBuffer* p) {

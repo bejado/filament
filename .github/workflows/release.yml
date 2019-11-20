@@ -162,6 +162,7 @@ jobs:
       - name: Run build script
         run: |
           build\windows\build-github.bat release
+        shell: cmd
       - name: Upload release artifacts
         run: |
           pip3 install PyGithub

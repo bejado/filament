@@ -7,9 +7,6 @@
 ![Windows Build Status](https://github.com/google/filament/workflows/Windows/badge.svg)
 ![Web Build Status](https://github.com/google/filament/workflows/Web/badge.svg)
 
-<img alt="Windows" src="https://github.com/bejado/filament/workflows/Windows/badge.svg">
-<img alt="Linux" src="https://github.com/bejado/filament/workflows/Linux%20Continuous/badge.svg">
-
 Filament is a real-time physically based rendering engine for Android, iOS, Linux, macOS, Windows,
 and WebGL. It is designed to be as small as possible and as efficient as possible on Android.
 

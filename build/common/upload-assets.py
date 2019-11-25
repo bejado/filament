@@ -48,8 +48,7 @@ if not authentication_token:
 
 g = Github(authentication_token)
 
-# TODO: be sure to change to google/filament after testing
-FILAMENT_REPO = "bejado/filament"
+FILAMENT_REPO = "google/filament"
 filament = g.get_repo(FILAMENT_REPO)
 
 def find_release_from_tag(repo, tag):

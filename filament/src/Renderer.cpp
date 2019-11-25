@@ -334,7 +334,7 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
     };
 
     auto& colorPass = fg.addPass<ColorPassData>("Color Pass",
-            [&svp, hdrFormat, colorPassNeedsDepthBuffer, msaa, clearFlags, useSSAO, ssao]
+            [&svp, hdrFormat, msaa, clearFlags, useSSAO, ssao]
             (FrameGraph::Builder& builder, ColorPassData& data) {
 
                 if (useSSAO) {
@@ -344,13 +344,11 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
                 data.color = builder.createTexture("Color Buffer",
                         { .width = svp.width, .height = svp.height, .format = hdrFormat });
 
-                if (colorPassNeedsDepthBuffer) {
-                    data.depth = builder.createTexture("Depth Buffer", {
-                            .width = svp.width, .height = svp.height,
-                            .format = TextureFormat::DEPTH24
-                    });
-                    data.depth = builder.write(builder.read(data.depth));
-                }
+                data.depth = builder.createTexture("Depth Buffer", {
+                        .width = svp.width, .height = svp.height,
+                        .format = TextureFormat::DEPTH24
+                });
+                data.depth = builder.write(builder.read(data.depth));
 
                 data.color = builder.write(builder.read(data.color));
                 data.rt = builder.createRenderTarget("Color Pass Target", {
@@ -399,7 +397,7 @@ void FRenderer::renderJob(ArenaScope& arena, FView& view) {
 
     if (hasPostProcess) {
         if (toneMapping) {
-            input = ppm.toneMapping(fg, input, ldrFormat, dithering, translucent);
+            input = ppm.toneMapping(fg, input, ldrFormat, dithering, translucent, fxaa);
         }
         if (fxaa) {
             input = ppm.fxaa(fg, input, ldrFormat, !toneMapping || translucent);

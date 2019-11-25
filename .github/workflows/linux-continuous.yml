@@ -17,5 +17,5 @@ jobs:
           cd build/linux && ./build.sh continuous
       - uses: actions/upload-artifact@v1.0.0
         with:
-          name: filament-linux.tgz
-          path: out/filament-release-linux.tgz
+          name: filament-linux
+          path: out/release/

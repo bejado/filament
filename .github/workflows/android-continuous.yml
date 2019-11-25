@@ -17,5 +17,5 @@ jobs:
           cd build/android && ./build.sh continuous
       - uses: actions/upload-artifact@v1.0.0
         with:
-          name: filament-android.aar
-          path: out/filament-android-release.aar
+          name: filament-android
+          path: out/*.aar

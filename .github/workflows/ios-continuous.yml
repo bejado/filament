@@ -17,5 +17,5 @@ jobs:
           cd build/ios && ./build.sh continuous
       - uses: actions/upload-artifact@v1.0.0
         with:
-          name: filament-ios.tgz
-          path: out/filament-release-ios.tgz
+          name: filament-ios
+          path: out/ios-release/

@@ -17,5 +17,5 @@ jobs:
           cd build/mac && ./build.sh continuous
       - uses: actions/upload-artifact@v1.0.0
         with:
-          name: filament-mac.tgz
-          path: out/filament-release-darwin.tgz
+          name: filament-mac
+          path: out/release/

@@ -18,4 +18,16 @@ jobs:
       - uses: actions/upload-artifact@v1.0.0
         with:
           name: filament-android
-          path: out/*.aar
+          path: out/filament-android-release.aar
+      - uses: actions/upload-artifact@v1.0.0
+        with:
+          name: filamat-android-full
+          path: out/filamat-android-full-release.aar
+      - uses: actions/upload-artifact@v1.0.0
+        with:
+          name: filamat-android-lite
+          path: out/filamat-android-lite-release.aar
+      - uses: actions/upload-artifact@v1.0.0
+        with:
+          name: gltfio-android-release
+          path: out/gltfio-android-release.aar

@@ -21,6 +21,14 @@ Android devices and as the renderer inside the Android Studio plugin.
 Make sure you always use tools from the same release as the runtime library. This is particularly
 important for `matc` (material compiler).
 
+If you prefer to live on the edge, you can download a continuous build by following the following
+steps:
+
+1. Find the [commit](https://github.com/bejado/filament/commits/master) you're interested in.
+2. Click the green check mark next to the commit message.
+3. Click _Details_ for the platform you're interested in.
+4. On the top right, click on the _Artifacts_ dropdown and then the artifact you want to download.
+
 ## Documentation
 
 - [Filament](https://google.github.io/filament/Filament.html), an in-depth explanation of

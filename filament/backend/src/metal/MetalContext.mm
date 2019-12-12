@@ -47,7 +47,8 @@ id<MTLTexture> acquireDrawable(MetalContext* context) {
         textureDescriptor.pixelFormat = MTLPixelFormatBGRA8Unorm;
         textureDescriptor.width = context->currentSurface->surfaceWidth;
         textureDescriptor.height = context->currentSurface->surfaceHeight;
-        textureDescriptor.usage = MTLTextureUsageRenderTarget;
+        // Specify MTLTextureUsageShaderRead so the headless surface can be blitted from.
+        textureDescriptor.usage = MTLTextureUsageRenderTarget | MTLTextureUsageShaderRead;
 #if defined(IOS)
         textureDescriptor.storageMode = MTLStorageModeShared;
 #else
@@ -75,6 +76,40 @@ id<MTLTexture> acquireDrawable(MetalContext* context) {
     }
     ASSERT_POSTCONDITION(context->currentDrawable != nil, "Could not obtain drawable.");
     return context->currentDrawable.texture;
+}
+
+id<MTLTexture> acquireDepthTexture(MetalContext* context) {
+    if (context->currentDepthTexture) {
+        // If the surface size has changed, we'll need to allocate a new depth texture.
+        if (context->currentDepthTexture.width != context->currentSurface->surfaceWidth ||
+            context->currentDepthTexture.height != context->currentSurface->surfaceHeight) {
+            context->currentDepthTexture = nil;
+        } else {
+            return context->currentDepthTexture;
+        }
+    }
+
+    const MTLPixelFormat depthFormat =
+#if defined(IOS)
+            MTLPixelFormatDepth32Float;
+#else
+    context->device.depth24Stencil8PixelFormatSupported ?
+            MTLPixelFormatDepth24Unorm_Stencil8 : MTLPixelFormatDepth32Float;
+#endif
+
+    const NSUInteger width = context->currentSurface->surfaceWidth;
+    const NSUInteger height = context->currentSurface->surfaceHeight;
+    MTLTextureDescriptor* descriptor =
+            [MTLTextureDescriptor texture2DDescriptorWithPixelFormat:depthFormat
+                                                               width:width
+                                                              height:height
+                                                           mipmapped:NO];
+    descriptor.usage = MTLTextureUsageRenderTarget;
+    descriptor.resourceOptions = MTLResourceStorageModePrivate;
+
+    context->currentDepthTexture = [context->device newTextureWithDescriptor:descriptor];
+
+    return context->currentDepthTexture;
 }
 
 id<MTLCommandBuffer> acquireCommandBuffer(MetalContext* context) {

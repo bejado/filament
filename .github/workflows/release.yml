@@ -37,8 +37,8 @@ jobs:
           echo ${APK_KEYSTORE_BASE64} > filament.jks.base64
           base64 --decode filament.jks.base64 > filament.jks
           BUILD_TOOLS_VERSION=30.0.3
-          alias apksigner=${ANDROID_HOME}/build-tools/${BUILD_TOOLS_VERSION}/apksigner
-          apksigner sign --ks filament.jks --in out/sample-gltf-viewer-release.apk --out out/filament-gltf-viewer-${TAG}-android.apk
+          APKSIGNER=${ANDROID_HOME}/build-tools/${BUILD_TOOLS_VERSION}/apksigner
+          ${APKSIGNER} sign --ks filament.jks --in out/sample-gltf-viewer-release.apk --out out/filament-gltf-viewer-${TAG}-android.apk
           rm out/sample-gltf-viewer-release.apk
       - name: Upload release assets
         run: |

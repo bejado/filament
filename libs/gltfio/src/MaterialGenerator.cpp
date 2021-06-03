@@ -18,7 +18,6 @@
 
 #include <filamat/MaterialBuilder.h>
 
-#include <utils/Log.h>
 #include <utils/Hash.h>
 
 #include <tsl/robin_map.h>
@@ -34,7 +33,7 @@ namespace {
 
 class MaterialGenerator : public MaterialProvider {
 public:
-    explicit MaterialGenerator(filament::Engine* engine);
+    explicit MaterialGenerator(filament::Engine* engine, bool optimizeShaders);
     ~MaterialGenerator() override;
 
     MaterialSource getSource() const noexcept override { return GENERATE_SHADERS; }
@@ -49,10 +48,12 @@ public:
     using HashFn = utils::hash::MurmurHashFn<MaterialKey>;
     tsl::robin_map<MaterialKey, filament::Material*, HashFn> mCache;
     std::vector<filament::Material*> mMaterials;
-    filament::Engine* mEngine;
+    filament::Engine* const mEngine;
+    const bool mOptimizeShaders;
 };
 
-MaterialGenerator::MaterialGenerator(Engine* engine) : mEngine(engine) {
+MaterialGenerator::MaterialGenerator(Engine* engine, bool optimizeShaders) : mEngine(engine),
+        mOptimizeShaders(optimizeShaders) {
     MaterialBuilder::init();
 }
 
@@ -200,6 +201,28 @@ std::string shaderFromKey(const MaterialKey& config) {
                 material.emissive.rgb *= texture(materialParams_emissiveMap, emissiveUV).rgb;
             )SHADER";
         }
+        if (config.hasTransmission) {
+            shader += R"SHADER(
+                material.transmission = materialParams.transmissionFactor;
+
+                // KHR_materials_transmission stipulates that baseColor be used for absorption, and
+                // it says "the transmitted light will be modulated by this color as it passes",
+                // which is inverted from Filament's notion of absorption.  Note that Filament
+                // clamps this value to [0,1].
+                material.absorption = 1.0 - material.baseColor.rgb;
+
+            )SHADER";
+            if (config.hasTransmissionTexture) {
+                shader += "highp float2 transmissionUV = ${transmission};\n";
+                if (config.hasTextureTransforms) {
+                    shader += "transmissionUV = (vec3(transmissionUV, 1.0) * "
+                            "materialParams.transmissionUvMatrix).xy;\n";
+                }
+                shader += R"SHADER(
+                    material.transmission *= texture(materialParams_transmissionMap, transmissionUV).r;
+                )SHADER";
+            }
+        }
         if (config.hasClearCoat) {
             shader += R"SHADER(
                 material.clearCoat = materialParams.clearCoatFactor;
@@ -228,27 +251,64 @@ std::string shaderFromKey(const MaterialKey& config) {
                 )SHADER";
             }
         }
+
+        if (config.hasSheen) {
+            shader += R"SHADER(
+                material.sheenColor = materialParams.sheenColorFactor;
+                material.sheenRoughness = materialParams.sheenRoughnessFactor;
+            )SHADER";
+
+            if (config.hasSheenColorTexture) {
+                shader += "highp float2 sheenColorUV = ${sheenColor};\n";
+                if (config.hasTextureTransforms) {
+                    shader += "sheenColorUV = (vec3(sheenColorUV, 1.0) * "
+                              "materialParams.sheenColorUvMatrix).xy;\n";
+                }
+                shader += R"SHADER(
+                    material.sheenColor *= texture(materialParams_sheenColorMap, sheenColorUV).rgb;
+                )SHADER";
+            }
+
+            if (config.hasSheenRoughnessTexture) {
+                shader += "highp float2 sheenRoughnessUV = ${sheenRoughness};\n";
+                if (config.hasTextureTransforms) {
+                    shader += "sheenRoughnessUV = (vec3(sheenRoughnessUV, 1.0) * "
+                              "materialParams.sheenRoughnessUvMatrix).xy;\n";
+                }
+                shader += R"SHADER(
+                    material.sheenRoughness *= texture(materialParams_sheenRoughnessMap, sheenRoughnessUV).a;
+                )SHADER";
+            }
+        }
+
+        if (config.hasIOR) {
+            shader += R"SHADER(
+                material.ior = materialParams.ior;
+            )SHADER";
+        }
     }
 
     shader += "}\n";
     return shader;
 }
 
-Material* createMaterial(Engine* engine, const MaterialKey& config, const UvMap& uvmap,
-        const char* name) {
+static Material* createMaterial(Engine* engine, const MaterialKey& config, const UvMap& uvmap,
+        const char* name, bool optimizeShaders) {
     std::string shader = shaderFromKey(config);
     processShaderString(&shader, uvmap, config);
     MaterialBuilder builder = MaterialBuilder()
             .name(name)
             .flipUV(false)
             .specularAmbientOcclusion(MaterialBuilder::SpecularAmbientOcclusion::SIMPLE)
+            .specularAntiAliasing(true)
+            .clearCoatIorChange(false)
             .material(shader.c_str())
             .doubleSided(config.doubleSided)
             .targetApi(filamat::targetApiFromBackend(engine->getBackend()));
 
-#ifndef NDEBUG
-    builder.optimization(MaterialBuilder::Optimization::NONE);
-#endif
+    if (!optimizeShaders) {
+        builder.optimization(MaterialBuilder::Optimization::NONE);
+    }
 
     static_assert(std::tuple_size<UvMap>::value == 8, "Badly sized uvset.");
     int numUvSets = getNumUvSets(uvmap);
@@ -345,20 +405,67 @@ Material* createMaterial(Engine* engine, const MaterialKey& config, const UvMap&
         }
     }
 
-    switch (config.alphaMode) {
-        case AlphaMode::OPAQUE:
-            builder.blending(MaterialBuilder::BlendingMode::OPAQUE);
-            break;
-        case AlphaMode::MASK:
-            builder.blending(MaterialBuilder::BlendingMode::MASKED);
-            break;
-        case AlphaMode::BLEND:
-            builder.blending(MaterialBuilder::BlendingMode::FADE);
-            builder.depthWrite(true);
-            break;
-        default:
-            // Ignore
-            break;
+    // SHEEN
+    if (config.hasSheen) {
+        builder.parameter(MaterialBuilder::UniformType::FLOAT3, "sheenColorFactor");
+        builder.parameter(MaterialBuilder::UniformType::FLOAT,  "sheenRoughnessFactor");
+        if (config.hasSheenColorTexture) {
+            builder.parameter(MaterialBuilder::SamplerType::SAMPLER_2D, "sheenColorMap");
+            if (config.hasTextureTransforms) {
+                builder.parameter(MaterialBuilder::UniformType::MAT3, "sheenColorUvMatrix");
+            }
+        }
+        if (config.hasSheenRoughnessTexture) {
+            builder.parameter(MaterialBuilder::SamplerType::SAMPLER_2D, "sheenRoughnessMap");
+            if (config.hasTextureTransforms) {
+                builder.parameter(MaterialBuilder::UniformType::MAT3, "sheenRoughnessUvMatrix");
+            }
+        }
+    }
+
+    // TRANSMISSION
+    if (config.hasTransmission) {
+        // According to KHR_materials_transmission, the minimum expectation for a compliant renderer
+        // is to at least render any opaque objects that lie behind transmitting objects.
+        builder.refractionMode(RefractionMode::SCREEN_SPACE);
+
+        // Thin refraction probably makes the most sense, given the language of the transmission
+        // spec and its lack of an IOR parameter. This means that we would do a good job rendering a
+        // window pane, but a poor job of rendering a glass full of liquid.
+        builder.refractionType(RefractionType::THIN);
+
+        builder.parameter(MaterialBuilder::UniformType::FLOAT, "transmissionFactor");
+        if (config.hasTransmissionTexture) {
+            builder.parameter(MaterialBuilder::SamplerType::SAMPLER_2D, "transmissionMap");
+            if (config.hasTextureTransforms) {
+                builder.parameter(MaterialBuilder::UniformType::MAT3, "transmissionUvMatrix");
+            }
+        }
+
+        builder.blending(MaterialBuilder::BlendingMode::FADE);
+        builder.depthWrite(true);
+    } else {
+        // BLENDING
+        switch (config.alphaMode) {
+            case AlphaMode::OPAQUE:
+                builder.blending(MaterialBuilder::BlendingMode::OPAQUE);
+                break;
+            case AlphaMode::MASK:
+                builder.blending(MaterialBuilder::BlendingMode::MASKED);
+                break;
+            case AlphaMode::BLEND:
+                builder.blending(MaterialBuilder::BlendingMode::FADE);
+                builder.depthWrite(true);
+                break;
+            default:
+                // Ignore
+                break;
+        }
+    }
+
+    // IOR
+    if (config.hasIOR) {
+        builder.parameter(MaterialBuilder::UniformType::FLOAT, "ior");
     }
 
     if (config.unlit) {
@@ -369,7 +476,7 @@ Material* createMaterial(Engine* engine, const MaterialKey& config, const UvMap&
         builder.shading(Shading::LIT);
     }
 
-    Package pkg = builder.build();
+    Package pkg = builder.build(engine->getJobSystem());
     return Material::Builder().package(pkg.getData(), pkg.getSize()).build(*engine);
 }
 
@@ -378,7 +485,13 @@ MaterialInstance* MaterialGenerator::createMaterialInstance(MaterialKey* config,
     constrainMaterial(config, uvmap);
     auto iter = mCache.find(*config);
     if (iter == mCache.end()) {
-        Material* mat = createMaterial(mEngine, *config, *uvmap, label);
+
+        bool optimizeShaders = mOptimizeShaders;
+#ifndef NDEBUG
+        optimizeShaders = false;
+#endif
+
+        Material* mat = createMaterial(mEngine, *config, *uvmap, label, optimizeShaders);
         mCache.emplace(std::make_pair(*config, mat));
         mMaterials.push_back(mat);
         return mat->createInstance(label);
@@ -390,8 +503,8 @@ MaterialInstance* MaterialGenerator::createMaterialInstance(MaterialKey* config,
 
 namespace gltfio {
 
-MaterialProvider* createMaterialGenerator(filament::Engine* engine) {
-    return new MaterialGenerator(engine);
+MaterialProvider* createMaterialGenerator(filament::Engine* engine, bool optimizeShaders) {
+    return new MaterialGenerator(engine, optimizeShaders);
 }
 
 } // namespace gltfio

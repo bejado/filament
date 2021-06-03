@@ -194,7 +194,7 @@ public:
      *
      * The animator is owned by the asset and should not be manually deleted.
      * The first time this is called, it must be called before FilamentAsset::releaseSourceData().
-     * If the asset is instanced, this returns a "master" animator that controls all instances.
+     * If the asset is instanced, this returns a "primary" animator that controls all instances.
      * To animate each instance individually, use \see FilamentInstance.
      */
     Animator* getAnimator() noexcept;
@@ -215,12 +215,13 @@ public:
      *
      * This should only be called after ResourceLoader::loadResources().
      * If using Animator, this should be called after getAnimator().
+     * If this is an instanced asset, this prevents creation of new instances.
      */
     void releaseSourceData() noexcept;
 
     /**
      * Returns a weak reference to the underlying cgltf hierarchy. This becomes invalid after
-     * calling releaseSourceData();
+     * calling releaseSourceData().
      */
     const void* getSourceAsset() noexcept;
 

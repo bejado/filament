@@ -56,6 +56,8 @@ UniformInterfaceBlock const& UibGenerator::getPerViewUib() noexcept  {
             // directional light
             .add("lightColorIntensity",     1, UniformInterfaceBlock::Type::FLOAT4)
             .add("sun",                     1, UniformInterfaceBlock::Type::FLOAT4)
+            .add("lightPosition",           1, UniformInterfaceBlock::Type::FLOAT3)
+            .add("padding0",                1, UniformInterfaceBlock::Type::UINT)
             .add("lightDirection",          1, UniformInterfaceBlock::Type::FLOAT3)
             .add("fParamsX",                1, UniformInterfaceBlock::Type::UINT)
             // shadow
@@ -93,20 +95,22 @@ UniformInterfaceBlock const& UibGenerator::getPerViewUib() noexcept  {
             .add("fogDensity",              1, UniformInterfaceBlock::Type::FLOAT)
             .add("fogInscatteringStart",    1, UniformInterfaceBlock::Type::FLOAT)
             .add("fogInscatteringSize",     1, UniformInterfaceBlock::Type::FLOAT)
-            // more camera stuff
             .add("fogColorFromIbl",         1, UniformInterfaceBlock::Type::FLOAT)
 
             // CSM information
             .add("cascades",                1, UniformInterfaceBlock::Type::UINT)
 
             // SSAO sampling parameters
-            .add("aoSamplingQuality",       1, UniformInterfaceBlock::Type::FLOAT)
+            .add("aoSamplingQualityAndEdgeDistance", 1, UniformInterfaceBlock::Type::FLOAT)
             .add("aoReserved1",             1, UniformInterfaceBlock::Type::FLOAT)
             .add("aoReserved2",             1, UniformInterfaceBlock::Type::FLOAT)
             .add("aoReserved3",             1, UniformInterfaceBlock::Type::FLOAT)
 
+            .add("clipControl",             1, UniformInterfaceBlock::Type::FLOAT2)
+            .add("padding1",                1, UniformInterfaceBlock::Type::FLOAT2)
+
             // bring PerViewUib to 2 KiB
-            .add("padding2", 62, UniformInterfaceBlock::Type::FLOAT4)
+            .add("padding2", 60, UniformInterfaceBlock::Type::FLOAT4)
             .build();
     return uib;
 }
@@ -146,6 +150,14 @@ UniformInterfaceBlock const& UibGenerator::getPerRenderableBonesUib() noexcept {
     static UniformInterfaceBlock uib = UniformInterfaceBlock::Builder()
             .name("BonesUniforms")
             .add("bones", CONFIG_MAX_BONE_COUNT * 4, UniformInterfaceBlock::Type::FLOAT4, Precision::MEDIUM)
+            .build();
+    return uib;
+}
+
+UniformInterfaceBlock const& UibGenerator::getFroxelRecordUib() noexcept {
+    static UniformInterfaceBlock uib = UniformInterfaceBlock::Builder()
+            .name("FroxelRecordUniforms")
+            .add("records", 1024, UniformInterfaceBlock::Type::UINT4, Precision::HIGH)
             .build();
     return uib;
 }

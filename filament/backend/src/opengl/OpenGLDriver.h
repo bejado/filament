@@ -21,6 +21,8 @@
 #include "DriverBase.h"
 #include "OpenGLContext.h"
 
+#include "backend/TargetBufferInfo.h"
+
 #include <utils/compiler.h>
 #include <utils/Allocator.h>
 
@@ -30,8 +32,9 @@
 
 #include <set>
 
-#include <assert.h>
-
+#ifndef FILAMENT_OPENGL_HANDLE_ARENA_SIZE_IN_MB
+#    define FILAMENT_OPENGL_HANDLE_ARENA_SIZE_IN_MB 2
+#endif
 
 namespace filament {
 
@@ -66,6 +69,14 @@ public:
         uint32_t base = 0;
         uint32_t size = 0;
         backend::BufferUsage usage = {};
+    };
+
+    struct GLBufferObject : public backend::HwBufferObject {
+        using HwBufferObject::HwBufferObject;
+        GLBufferObject(uint32_t size) noexcept : HwBufferObject(size) {}
+        struct {
+            GLuint id = 0;
+        } gl;
     };
 
     struct GLVertexBuffer : public backend::HwVertexBuffer {
@@ -107,7 +118,6 @@ public:
         using HwTexture::HwTexture;
         struct {
             GLuint id = 0;          // texture or renderbuffer id
-            mutable GLuint rb = 0;  // multi-sample sidecar renderbuffer
             GLenum target = 0;
             GLenum internalFormat = 0;
             mutable GLsync fence = nullptr;
@@ -180,6 +190,7 @@ public:
         struct GL {
             struct RenderBuffer {
                 GLTexture* texture = nullptr;
+                mutable GLuint rb = 0;  // multi-sample sidecar renderbuffer
                 uint8_t level = 0; // level when attached to a texture
             };
             // field ordering to optimize size on 64-bits
@@ -234,7 +245,6 @@ private:
 
 #include "private/backend/DriverAPI.inc"
 
-
     // Memory management...
 
     class HandleAllocator {
@@ -244,8 +254,22 @@ private:
     public:
         static constexpr size_t MIN_ALIGNMENT_SHIFT = 4;
         explicit HandleAllocator(const utils::HeapArea& area);
-        void* alloc(size_t size, size_t alignment, size_t extra = 0) noexcept;
-        void free(void* p, size_t size) noexcept;
+
+        // this is in fact always called with a constexpr size argument
+        inline void* alloc(size_t size, size_t alignment, size_t extra) noexcept {
+            assert_invariant(size <= mPool2.getSize());
+            if (size <= mPool0.getSize()) return mPool0.alloc(size, 16, extra);
+            if (size <= mPool1.getSize()) return mPool1.alloc(size, 32, extra);
+            if (size <= mPool2.getSize()) return mPool2.alloc(size, 32, extra);
+            return nullptr;
+        }
+
+        // this is in fact always called with a constexpr size argument
+        inline void free(void* p, size_t size) noexcept {
+            if (size <= mPool0.getSize()) { mPool0.free(p); return; }
+            if (size <= mPool1.getSize()) { mPool1.free(p); return; }
+            if (size <= mPool2.getSize()) { mPool2.free(p); return; }
+        }
     };
 
     // the arenas for handle allocation needs to be thread-safe
@@ -261,6 +285,7 @@ private:
     HandleArena mHandleArena;
 
     backend::HandleBase::HandleId allocateHandle(size_t size) noexcept;
+    backend::HandleBase::HandleId allocateHandle(void* addr) noexcept;
 
     template<typename D, typename ... ARGS>
     backend::Handle<D> initHandle(ARGS&& ... args) noexcept;
@@ -286,12 +311,12 @@ private:
             std::is_pointer<Dp>::value &&
             std::is_base_of<B, typename std::remove_pointer<Dp>::type>::value, Dp>::type
     handle_cast(backend::Handle<B>& handle) noexcept {
-        assert(handle);
+        assert_invariant(handle);
         if (!handle) return nullptr; // better to get a NPE than random behavior/corruption
         char* const base = (char *)mHandleArena.getArea().begin();
         size_t offset = handle.getId() << HandleAllocator::MIN_ALIGNMENT_SHIFT;
         // assert that this handle is even a valid one
-        assert(base + offset + sizeof(typename std::remove_pointer<Dp>::type) <= (char *)mHandleArena.getArea().end());
+        assert_invariant(base + offset + sizeof(typename std::remove_pointer<Dp>::type) <= (char *)mHandleArena.getArea().end());
         return static_cast<Dp>(static_cast<void *>(base + offset));
     }
 
@@ -313,6 +338,8 @@ private:
     GetProcAddressType getProcAddress = nullptr;
 
     /* Misc... */
+
+    void updateVertexArrayObject(GLRenderPrimitive* rp, GLVertexBuffer const* vb);
 
     void framebufferTexture(backend::TargetBufferInfo const& binfo,
             GLRenderTarget const* rt, GLenum attachment) noexcept;
@@ -347,6 +374,7 @@ private:
     /* State tracking GL wrappers... */
 
            void bindTexture(GLuint unit, GLTexture const* t) noexcept;
+           void bindSampler(GLuint unit, backend::SamplerParams params) noexcept;
     inline void useProgram(OpenGLProgram* p) noexcept;
 
     enum class ResolveAction { LOAD, STORE };
@@ -356,9 +384,9 @@ private:
     GLuint getSamplerSlow(backend::SamplerParams sp) const noexcept;
 
     inline GLuint getSampler(backend::SamplerParams sp) const noexcept {
-        assert(!sp.padding0);
-        assert(!sp.padding1);
-        assert(!sp.padding2);
+        assert_invariant(!sp.padding0);
+        assert_invariant(!sp.padding1);
+        assert_invariant(!sp.padding2);
         auto& samplerMap = mSamplerMap;
         auto pos = samplerMap.find(sp.u);
         if (UTILS_UNLIKELY(pos == samplerMap.end())) {
@@ -367,11 +395,12 @@ private:
         return pos->second;
     }
 
-    const std::array<backend::HwSamplerGroup*, backend::Program::SAMPLER_BINDING_COUNT>& getSamplerBindings() const {
+    const std::array<backend::HwSamplerGroup*, backend::Program::BINDING_COUNT>& getSamplerBindings() const {
         return mSamplerBindings;
     }
 
-    static GLsizei getAttachments(std::array<GLenum, 6>& attachments,
+    using AttachmentArray = std::array<GLenum, backend::MRT::MAX_SUPPORTED_RENDER_TARGET_COUNT + 2>;
+    static GLsizei getAttachments(AttachmentArray& attachments,
             GLRenderTarget const* rt, backend::TargetBufferFlags buffers) noexcept;
 
     backend::RasterState mRasterState;
@@ -388,7 +417,7 @@ private:
     void setViewportScissor(backend::Viewport const& viewportScissor) noexcept;
 
     // sampler buffer binding points (nullptr if not used)
-    std::array<backend::HwSamplerGroup*, backend::Program::SAMPLER_BINDING_COUNT> mSamplerBindings = {};   // 8 pointers
+    std::array<backend::HwSamplerGroup*, backend::Program::BINDING_COUNT> mSamplerBindings = {};   // 8 pointers
 
     mutable tsl::robin_map<uint32_t, GLuint> mSamplerMap;
     mutable std::vector<GLTexture*> mExternalStreams;

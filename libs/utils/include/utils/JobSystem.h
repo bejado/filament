@@ -39,7 +39,7 @@
 namespace utils {
 
 class JobSystem {
-    static constexpr size_t MAX_JOB_COUNT = 4096;
+    static constexpr size_t MAX_JOB_COUNT = 16384;
     static_assert(MAX_JOB_COUNT <= 0x7FFE, "MAX_JOB_COUNT must be <= 0x7FFE");
     using WorkQueue = WorkStealingDequeue<uint16_t, MAX_JOB_COUNT>;
 
@@ -90,9 +90,13 @@ public:
 
 
     // If a parent is not specified when creating a job, that job will automatically take the
-    // master job as a parent.
-    // The master job is reset when waited on.
-    Job* setMasterJob(Job* job) noexcept { return mMasterJob = job; }
+    // root job as a parent.
+    // The root job is reset when waited on.
+    Job* setRootJob(Job* job) noexcept { return mRootJob = job; }
+
+     // use setRootJob() instead
+    UTILS_DEPRECATED
+    Job* setMasterJob(Job* job) noexcept { return setRootJob(job); }
 
 
     Job* create(Job* parent, JobFunc func) noexcept;
@@ -192,6 +196,7 @@ public:
         if (job) {
             new(job->storage) T(std::move(data));
         }
+        assert(job);
         return job;
     }
 
@@ -252,7 +257,7 @@ public:
     void run(Job*& job, uint32_t flags = 0) noexcept;
     void run(Job*&& job, uint32_t flags = 0) noexcept { // allows run(createJob(...));
         Job* p = job;
-        run(p);
+        run(p, flags);
     }
 
     void signal() noexcept;
@@ -357,6 +362,7 @@ private:
     void finish(Job* job) noexcept;
 
     void put(WorkQueue& workQueue, Job* job) noexcept {
+        assert(job);
         size_t index = job - mJobStorageBase;
         assert(index >= 0 && index < MAX_JOB_COUNT);
         workQueue.push(uint16_t(index + 1));
@@ -374,13 +380,12 @@ private:
         return !index ? nullptr : &mJobStorageBase[index - 1];
     }
 
-    void wait(std::unique_lock<Mutex>& lock) noexcept;
+    void wait(std::unique_lock<Mutex>& lock, Job* job = nullptr) noexcept;
     void wake() noexcept;
 
     // these have thread contention, keep them together
     utils::Mutex mWaiterLock;
     utils::Condition mWaiterCondition;
-    uint32_t mWaiterCount = 0;
 
     std::atomic<uint32_t> mActiveJobs = { 0 };
     utils::Arena<utils::ThreadSafeObjectPoolAllocator<Job>, LockingPolicy::NoLock> mJobPool;
@@ -401,7 +406,7 @@ private:
     Job* const mJobStorageBase;                         // Base for conversion to indices
     uint16_t mThreadCount = 0;                          // total # of threads in the pool
     uint8_t mParallelSplitCount = 0;                    // # of split allowable in parallel_for
-    Job* mMasterJob = nullptr;
+    Job* mRootJob = nullptr;
 
     utils::SpinLock mThreadMapLock; // this should have very little contention
     tsl::robin_map<std::thread::id, ThreadState *> mThreadMap;
@@ -465,6 +470,7 @@ struct ParallelForJobData {
     }
 
     void parallelWithJobs(JobSystem& js, JobSystem::Job* parent) noexcept {
+        assert(parent);
 
         // We first split about the number of threads we have, and only then we split the rest
         // in a single thread (but execute the final cut in new jobs, see parallel() below),

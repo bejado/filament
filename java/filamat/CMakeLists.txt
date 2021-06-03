@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.19)
 project(filament-java)
 
 if (NOT FILAMENT_ENABLE_JAVA)
@@ -30,9 +30,9 @@ set(TARGET filamat-jni)
 
 include_directories(${JNI_INCLUDE_DIRS})
 
-set(CXX_STANDARD "-std=c++14")
+set(CXX_STANDARD "-std=c++17")
 if (WIN32)
-    set(CXX_STANDARD "/std:c++14")
+    set(CXX_STANDARD "/std:c++17")
 endif()
 
 set(FILAMAT_DIR ../../android/filamat-android)

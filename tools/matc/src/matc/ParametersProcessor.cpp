@@ -203,6 +203,30 @@ static bool processParameter(MaterialBuilder& builder, const JsonishObject& json
         } else {
             builder.parameter(type, nameString.c_str());
         }
+    } else if (Enums::isValid<SubpassType>(typeString)) {
+        if (arraySize > 0) {
+            std::cerr << "parameters: the parameter with name '" << nameString << "'"
+                    << " is an array of subpasses of size " << arraySize << ". Arrays of subpasses"
+                    << " are currently not supported." << std::endl;
+            return false;
+        }
+
+        MaterialBuilder::SubpassType type = Enums::toEnum<SubpassType>(typeString);
+        if (precisionValue && formatValue) {
+            auto format = Enums::toEnum<SamplerFormat>(formatValue->toJsonString()->getString());
+            auto precision =
+                    Enums::toEnum<SamplerPrecision>(precisionValue->toJsonString()->getString());
+            builder.parameter(type, format, precision, nameString.c_str());
+        } else if (formatValue) {
+            auto format = Enums::toEnum<SamplerFormat>(formatValue->toJsonString()->getString());
+            builder.parameter(type, format, nameString.c_str());
+        } else if (precisionValue) {
+            auto precision =
+                    Enums::toEnum<SamplerPrecision>(precisionValue->toJsonString()->getString());
+            builder.parameter(type, precision, nameString.c_str());
+        } else {
+            builder.parameter(type, nameString.c_str());
+        }
     } else {
         std::cerr << "parameters: the type '" << typeString
                << "' for parameter with name '" << nameString << "' is neither a valid uniform "
@@ -219,7 +243,7 @@ static bool processParameters(MaterialBuilder& builder, const JsonishValue& v) {
     bool ok = true;
     for (auto value : jsonArray->getElements()) {
         if (value->getType() == JsonishValue::Type::OBJECT) {
-            ok |= processParameter(builder, *value->toJsonObject());
+            ok &= processParameter(builder, *value->toJsonObject());
             continue;
         }
         std::cerr << "parameters must be an array of OBJECTs." << std::endl;
@@ -351,6 +375,127 @@ static bool processCulling(MaterialBuilder& builder, const JsonishValue& value) 
 
     builder.culling(stringToEnum(strToEnum, jsonString->getString()));
     return true;
+}
+
+static bool processQuality(MaterialBuilder& builder, const JsonishValue& value) {
+    static const std::unordered_map<std::string, MaterialBuilder::ShaderQuality> strToEnum {
+        { "low", MaterialBuilder::ShaderQuality::LOW },
+        { "normal", MaterialBuilder::ShaderQuality::NORMAL },
+        { "high", MaterialBuilder::ShaderQuality::HIGH },
+        { "default", MaterialBuilder::ShaderQuality::DEFAULT },
+    };
+    auto jsonString = value.toJsonString();
+    if (!isStringValidEnum(strToEnum, jsonString->getString())) {
+        return logEnumIssue("quality", *jsonString, strToEnum);
+    }
+
+    builder.quality(stringToEnum(strToEnum, jsonString->getString()));
+    return true;
+}
+
+static bool processOutput(MaterialBuilder& builder, const JsonishObject& jsonObject) noexcept {
+
+    const JsonishValue* nameValue = jsonObject.getValue("name");
+    if (!nameValue) {
+        std::cerr << "outputs: entry without 'name' key." << std::endl;
+        return false;
+    }
+    if (nameValue->getType() != JsonishValue::STRING) {
+        std::cerr << "outputs: name value must be STRING." << std::endl;
+        return false;
+    }
+
+    const JsonishValue* targetValue = jsonObject.getValue("target");
+    if (targetValue) {
+        if (targetValue->getType() != JsonishValue::STRING) {
+            std::cerr << "outputs: target must be a STRING." << std::endl;
+            return false;
+        }
+
+        auto targetString = targetValue->toJsonString();
+        if (!Enums::isValid<OutputTarget>(targetString->getString())) {
+            return logEnumIssue("target", *targetString, Enums::map<OutputTarget>());
+        }
+    }
+
+    const JsonishValue* typeValue = jsonObject.getValue("type");
+    if (typeValue) {
+        if (typeValue->getType() != JsonishValue::STRING) {
+            std::cerr << "outputs: type must be a STRING." << std::endl;
+            return false;
+        }
+
+        auto typeString = typeValue->toJsonString();
+        if (!Enums::isValid<OutputType>(typeString->getString())) {
+            return logEnumIssue("type", *typeString, Enums::map<OutputType>());
+        }
+    }
+
+    const JsonishValue* qualifierValue = jsonObject.getValue("qualifier");
+    if (qualifierValue) {
+        if (qualifierValue->getType() != JsonishValue::STRING) {
+            std::cerr << "outputs: qualifier must be a STRING." << std::endl;
+            return false;
+        }
+
+        auto qualifierString = qualifierValue->toJsonString();
+        if (!Enums::isValid<OutputQualifier>(qualifierString->getString())) {
+            return logEnumIssue("qualifier", *qualifierString, Enums::map<OutputQualifier>());
+        }
+    }
+
+    const JsonishValue* locationValue = jsonObject.getValue("location");
+    if (locationValue) {
+        if (locationValue->getType() != JsonishValue::NUMBER) {
+            std::cerr << "outputs: location must be a NUMBER." << std::endl;
+            return false;
+        }
+    }
+
+    const char* name = nameValue->toJsonString()->getString().c_str();
+
+    OutputTarget target = OutputTarget::COLOR;
+    if (targetValue) {
+        target = Enums::toEnum<OutputTarget>(targetValue->toJsonString()->getString());
+    }
+
+    OutputType type = OutputType::FLOAT4;
+    if (target == OutputTarget::DEPTH) {
+        // The default type for depth targets is float.
+        type = OutputType::FLOAT;
+    }
+    if (typeValue) {
+        type = Enums::toEnum<OutputType>(typeValue->toJsonString()->getString());
+    }
+
+    OutputQualifier qualifier = OutputQualifier::OUT;
+    if (qualifierValue) {
+        qualifier = Enums::toEnum<OutputQualifier>(qualifierValue->toJsonString()->getString());
+    }
+
+    int location = -1;
+    if (locationValue) {
+        location = static_cast<int>(locationValue->toJsonNumber()->getFloat());
+    }
+
+    builder.output(qualifier, target, type, name, location);
+
+    return true;
+}
+
+static bool processOutputs(MaterialBuilder& builder, const JsonishValue& v) {
+    auto jsonArray = v.toJsonArray();
+
+    bool ok = true;
+    for (auto value : jsonArray->getElements()) {
+        if (value->getType() == JsonishValue::Type::OBJECT) {
+            ok &= processOutput(builder, *value->toJsonObject());
+            continue;
+        }
+        std::cerr << "outputs must be an array of OBJECTs." << std::endl;
+        return false;
+    }
+    return ok;
 }
 
 static bool processColorWrite(MaterialBuilder& builder, const JsonishValue& value) {
@@ -522,6 +667,8 @@ static bool processVariantFilter(MaterialBuilder& builder, const JsonishValue& v
         strToEnum["dynamicLighting"] = filament::Variant::DYNAMIC_LIGHTING;
         strToEnum["shadowReceiver"] = filament::Variant::SHADOW_RECEIVER;
         strToEnum["skinning"] = filament::Variant::SKINNING_OR_MORPHING;
+        strToEnum["vsm"] = filament::Variant::VSM;
+        strToEnum["fog"] = filament::Variant::FOG;
         return strToEnum;
     }();
     uint8_t variantFilter = 0;
@@ -581,6 +728,8 @@ ParametersProcessor::ParametersProcessor() {
     mParameters["refractionMode"]                = { &processRefractionMode, Type::STRING };
     mParameters["refractionType"]                = { &processRefractionType, Type::STRING };
     mParameters["framebufferFetch"]              = { &processFramebufferFetch, Type::BOOL };
+    mParameters["outputs"]                       = { &processOutputs, Type::ARRAY };
+    mParameters["quality"]                       = { &processQuality, Type::STRING };
 }
 
 bool ParametersProcessor::process(MaterialBuilder& builder, const JsonishObject& jsonObject) {

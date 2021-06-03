@@ -33,8 +33,7 @@ class Program {
 public:
 
     static constexpr size_t SHADER_TYPE_COUNT = 2;
-    static constexpr size_t UNIFORM_BINDING_COUNT = CONFIG_UNIFORM_BINDING_COUNT;
-    static constexpr size_t SAMPLER_BINDING_COUNT = CONFIG_SAMPLER_BINDING_COUNT;
+    static constexpr size_t BINDING_COUNT = CONFIG_BINDING_COUNT;
 
     enum class Shader : uint8_t {
         VERTEX = 0,
@@ -43,11 +42,12 @@ public:
 
     struct Sampler {
         utils::CString name = {};   // name of the sampler in the shader
-        size_t binding = 0;         // binding point of the sampler in the shader
+        uint16_t binding = 0;       // binding point of the sampler in the shader
+        bool strict = false;        // if true, this sampler must always have a bound texture
     };
 
-    using SamplerGroupInfo = std::array<std::vector<Sampler>, SAMPLER_BINDING_COUNT>;
-    using UniformBlockInfo = std::array<utils::CString, UNIFORM_BINDING_COUNT>;
+    using SamplerGroupInfo = std::array<std::vector<Sampler>, BINDING_COUNT>;
+    using UniformBlockInfo = std::array<utils::CString, BINDING_COUNT>;
 
     Program() noexcept;
     Program(const Program& rhs) = delete;

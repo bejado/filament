@@ -24,11 +24,11 @@
 #include <utils/SpinLock.h>
 
 #include <atomic>
+#include <cstddef>
 #include <mutex>
 #include <type_traits>
 
 #include <assert.h>
-#include <stddef.h>
 #include <stdlib.h>
 
 namespace utils {
@@ -163,14 +163,6 @@ public:
     void free(void* p, size_t) noexcept {
         free(p);
     }
-
-    // Allocators can't be copied
-    HeapAllocator(const HeapAllocator& rhs) = delete;
-    HeapAllocator& operator=(const HeapAllocator& rhs) = delete;
-
-    // Allocators can be moved
-    HeapAllocator(HeapAllocator&& rhs) noexcept = default;
-    HeapAllocator& operator=(HeapAllocator&& rhs) noexcept = default;
 
     ~HeapAllocator() noexcept = default;
 
@@ -346,7 +338,7 @@ public:
         mFreeList.push(p);
     }
 
-    size_t getSize() const noexcept { return ELEMENT_SIZE; }
+    constexpr size_t getSize() const noexcept { return ELEMENT_SIZE; }
 
     PoolAllocator(void* begin, void* end) noexcept
         : mFreeList(begin, end, ELEMENT_SIZE, ALIGNMENT, OFFSET) {
@@ -415,6 +407,12 @@ public:
     void* begin() const noexcept { return mBegin; }
     void* end() const noexcept { return mEnd; }
     size_t getSize() const noexcept { return uintptr_t(mEnd) - uintptr_t(mBegin); }
+
+    friend void swap(HeapArea& lhs, HeapArea& rhs) noexcept {
+        using std::swap;
+        swap(lhs.mBegin, rhs.mBegin);
+        swap(lhs.mEnd, rhs.mEnd);
+    }
 
 private:
     void* mBegin = nullptr;
@@ -531,10 +529,10 @@ public:
     // construct an arena with a name and forward argument to its allocator
     template<typename ... ARGS>
     Arena(const char* name, size_t size, ARGS&& ... args)
-            : mArea(size),
+            : mArenaName(name),
+              mArea(size),
               mAllocator(mArea, std::forward<ARGS>(args) ... ),
-              mListener(name, mArea.data(), size),
-              mArenaName(name) {
+              mListener(name, mArea.data(), size) {
     }
 
     // allocate memory from arena with given size and alignment
@@ -631,12 +629,22 @@ public:
     Arena(Arena const& rhs) noexcept = delete;
     Arena& operator=(Arena const& rhs) noexcept = delete;
 
+    friend void swap(Arena& lhs, Arena& rhs) noexcept {
+        using std::swap;
+        swap(lhs.mArea, rhs.mArea);
+        swap(lhs.mAllocator, rhs.mAllocator);
+        swap(lhs.mLock, rhs.mLock);
+        swap(lhs.mListener, rhs.mListener);
+        swap(lhs.mArenaName, rhs.mArenaName);
+    }
+
 private:
+    char const* mArenaName = nullptr;
     HeapArea mArea; // We might want to make that a template parameter too eventually.
+    // note: we should use something like compressed_pair for the members below
     AllocatorPolicy mAllocator;
     LockingPolicy mLock;
     TrackingPolicy mListener;
-    char const* mArenaName = nullptr;
 };
 
 // ------------------------------------------------------------------------------------------------

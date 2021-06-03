@@ -35,6 +35,7 @@ std::unordered_map<std::string, Property> Enums::mStringToProperty = {
         { "subsurfacePower",     Property::SUBSURFACE_POWER },
         { "subsurfaceColor",     Property::SUBSURFACE_COLOR },
         { "sheenColor",          Property::SHEEN_COLOR },
+        { "sheenRoughness",      Property::SHEEN_ROUGHNESS },
         { "glossiness",          Property::GLOSSINESS },
         { "specularColor",       Property::SPECULAR_COLOR },
         { "emissive",            Property::EMISSIVE },
@@ -83,6 +84,7 @@ std::unordered_map<std::string, UniformType>& Enums::getMap<UniformType>() noexc
 
 std::unordered_map<std::string, SamplerType> Enums::mStringToSamplerType = {
         { "sampler2d",       SamplerType::SAMPLER_2D },
+        { "sampler2dArray",  SamplerType::SAMPLER_2D_ARRAY },
         { "sampler3d",       SamplerType::SAMPLER_3D },
         { "samplerCubemap",  SamplerType::SAMPLER_CUBEMAP },
         { "samplerExternal", SamplerType::SAMPLER_EXTERNAL },
@@ -91,6 +93,15 @@ std::unordered_map<std::string, SamplerType> Enums::mStringToSamplerType = {
 template <>
 std::unordered_map<std::string, SamplerType>& Enums::getMap<SamplerType>() noexcept {
     return mStringToSamplerType;
+};
+
+std::unordered_map<std::string, SubpassType> Enums::mStringToSubpassType = {
+        { "subpassInput",       SubpassType::SUBPASS_INPUT },
+};
+
+template <>
+std::unordered_map<std::string, SubpassType>& Enums::getMap<SubpassType>() noexcept {
+    return mStringToSubpassType;
 };
 
 std::unordered_map<std::string, SamplerPrecision> Enums::mStringToSamplerPrecision = {
@@ -103,6 +114,37 @@ std::unordered_map<std::string, SamplerPrecision> Enums::mStringToSamplerPrecisi
 template <>
 std::unordered_map<std::string, SamplerPrecision>& Enums::getMap<SamplerPrecision>() noexcept {
     return mStringToSamplerPrecision;
+};
+
+std::unordered_map<std::string, OutputTarget> Enums::mStringToOutputTarget = {
+        { "color",   OutputTarget::COLOR },
+        { "depth",   OutputTarget::DEPTH }
+};
+
+template <>
+std::unordered_map<std::string, OutputTarget>& Enums::getMap<OutputTarget>() noexcept {
+    return mStringToOutputTarget;
+};
+
+std::unordered_map<std::string, OutputQualifier> Enums::mStringToOutputQualifier = {
+        { "out",     OutputQualifier::OUT }
+};
+
+template <>
+std::unordered_map<std::string, OutputQualifier>& Enums::getMap<OutputQualifier>() noexcept {
+    return mStringToOutputQualifier;
+};
+
+std::unordered_map<std::string, OutputType> Enums::mStringToOutputType = {
+        { "float",   OutputType::FLOAT },
+        { "float2",  OutputType::FLOAT2 },
+        { "float3",  OutputType::FLOAT3 },
+        { "float4",  OutputType::FLOAT4 },
+};
+
+template <>
+std::unordered_map<std::string, OutputType>& Enums::getMap<OutputType>() noexcept {
+    return mStringToOutputType;
 };
 
 std::unordered_map<std::string, SamplerFormat> Enums::mStringToSamplerFormat = {

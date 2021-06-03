@@ -18,11 +18,15 @@
 
 #include <utils/Panic.h>
 
+using namespace bluevk;
+
 namespace filament {
 namespace backend {
 
 VulkanBuffer::VulkanBuffer(VulkanContext& context, VulkanStagePool& stagePool,
-        VkBufferUsageFlags usage, uint32_t numBytes) : mContext(context), mStagePool(stagePool) {
+        VulkanDisposer& disposer, VulkanDisposer::Key key, VkBufferUsageFlags usage,
+        uint32_t numBytes) : mContext(context), mStagePool(stagePool), mDisposer(disposer),
+        mDisposerKey(key) {
     // Create the VkBuffer.
     VkBufferCreateInfo bufferInfo {
         .sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
@@ -40,7 +44,7 @@ VulkanBuffer::~VulkanBuffer() {
 }
 
 void VulkanBuffer::loadFromCpu(const void* cpuData, uint32_t byteOffset, uint32_t numBytes) {
-    assert(byteOffset == 0);
+    assert_invariant(byteOffset == 0);
     VulkanStage const* stage = mStagePool.acquireStage(numBytes);
     void* mapped;
     vmaMapMemory(mContext.allocator, stage->memory, &mapped);
@@ -48,34 +52,30 @@ void VulkanBuffer::loadFromCpu(const void* cpuData, uint32_t byteOffset, uint32_
     vmaUnmapMemory(mContext.allocator, stage->memory);
     vmaFlushAllocation(mContext.allocator, stage->memory, byteOffset, numBytes);
 
-    auto copyToDevice = [this, numBytes, stage] (VulkanCommandBuffer& commands) {
-        VkBufferCopy region { .size = numBytes };
-        vkCmdCopyBuffer(commands.cmdbuffer, stage->buffer, mGpuBuffer, 1, &region);
+    const VkCommandBuffer cmdbuffer = mContext.commands->get().cmdbuffer;
 
-        // Ensure that the copy finishes before the next draw call.
-        VkBufferMemoryBarrier barrier {
-            .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_INDEX_READ_BIT,
-            .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-            .buffer = mGpuBuffer,
-            .size = VK_WHOLE_SIZE
-        };
-        vkCmdPipelineBarrier(commands.cmdbuffer, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_VERTEX_INPUT_BIT, 0, 0, nullptr, 1, &barrier, 0, nullptr);
+    VkBufferCopy region { .size = numBytes };
+    vkCmdCopyBuffer(cmdbuffer, stage->buffer, mGpuBuffer, 1, &region);
+    mDisposer.acquire(mDisposerKey);
 
-        mStagePool.releaseStage(stage, commands);
+    // Firstly, ensure that the copy finishes before the next draw call.
+    // Secondly, in case the user decides to upload another chunk (without ever using the first one)
+    // we need to ensure that this upload completes first.
+    VkBufferMemoryBarrier barrier {
+        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
+        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+        .dstAccessMask = VK_ACCESS_VERTEX_ATTRIBUTE_READ_BIT | VK_ACCESS_INDEX_READ_BIT |
+                         VK_ACCESS_TRANSFER_WRITE_BIT,
+        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
+        .buffer = mGpuBuffer,
+        .size = VK_WHOLE_SIZE
     };
 
-    // If inside beginFrame / endFrame, use the swap context, otherwise use the work cmdbuffer.
-    if (mContext.currentCommands) {
-        copyToDevice(*mContext.currentCommands);
-    } else {
-        acquireWorkCommandBuffer(mContext);
-        copyToDevice(mContext.work);
-        flushWorkCommandBuffer(mContext);
-    }
+    vkCmdPipelineBarrier(cmdbuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_VERTEX_INPUT_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0, 0, nullptr, 1, &barrier, 0, nullptr);
 }
 
 } // namespace filament

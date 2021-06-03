@@ -17,7 +17,8 @@
 #ifndef TNT_FILAMENT_DRIVER_VULKANDRIVER_H
 #define TNT_FILAMENT_DRIVER_VULKANDRIVER_H
 
-#include "VulkanBinder.h"
+#include "VulkanPipelineCache.h"
+#include "VulkanBlitter.h"
 #include "VulkanDisposer.h"
 #include "VulkanContext.h"
 #include "VulkanFboCache.h"
@@ -48,9 +49,7 @@ public:
 
 private:
 
-#ifndef NDEBUG
-    void debugCommand(const char* methodName) override;
-#endif
+    void debugCommandBegin(CommandStream* cmds, bool synchronous, const char* methodName) noexcept override;
 
     inline VulkanDriver(backend::VulkanPlatform* platform,
             const char* const* ppEnabledExtensions, uint32_t enabledExtensionCount) noexcept;
@@ -97,37 +96,37 @@ private:
 
     template<typename Dp, typename B>
     Dp* handle_cast(HandleMap& handleMap, Handle<B> handle) noexcept {
-        assert(handle);
+        assert_invariant(handle);
         if (!handle) return nullptr; // better to get a NPE than random behavior/corruption
         std::lock_guard<std::mutex> lock(mHandleMapMutex);
         auto iter = handleMap.find(handle.getId());
-        assert(iter != handleMap.end());
+        assert_invariant(iter != handleMap.end());
         Blob& blob = iter->second;
-        assert(blob.size() == sizeof(Dp));
+        assert_invariant(blob.size() == sizeof(Dp));
         return reinterpret_cast<Dp*>(blob.data());
     }
 
     template<typename Dp, typename B>
     const Dp* handle_const_cast(HandleMap& handleMap, const Handle<B>& handle) noexcept {
-        assert(handle);
+        assert_invariant(handle);
         if (!handle) return nullptr; // better to get a NPE than random behavior/corruption
         std::lock_guard<std::mutex> lock(mHandleMapMutex);
         auto iter = handleMap.find(handle.getId());
-        assert(iter != handleMap.end());
+        assert_invariant(iter != handleMap.end());
         Blob& blob = iter->second;
-        assert(blob.size() == sizeof(Dp));
+        assert_invariant(blob.size() == sizeof(Dp));
         return reinterpret_cast<const Dp*>(blob.data());
     }
 
     template<typename Dp, typename B, typename ... ARGS>
     Dp* construct_handle(HandleMap& handleMap, Handle<B>& handle, ARGS&& ... args) noexcept {
-        assert(handle);
+        assert_invariant(handle);
         if (!handle) return nullptr; // better to get a NPE than random behavior/corruption
         std::lock_guard<std::mutex> lock(mHandleMapMutex);
         auto iter = handleMap.find(handle.getId());
-        assert(iter != handleMap.end());
+        assert_invariant(iter != handleMap.end());
         Blob& blob = iter->second;
-        assert(blob.size() == sizeof(Dp));
+        assert_invariant(blob.size() == sizeof(Dp));
         Dp* addr = reinterpret_cast<Dp*>(blob.data());
         new(addr) Dp(std::forward<ARGS>(args)...);
         return addr;
@@ -138,24 +137,27 @@ private:
         std::lock_guard<std::mutex> lock(mHandleMapMutex);
         // Call the destructor, remove the blob, don't bother reclaiming the integer id.
         auto iter = handleMap.find(handle.getId());
-        assert(iter != handleMap.end());
+        assert_invariant(iter != handleMap.end());
         Blob& blob = iter->second;
-        assert(blob.size() == sizeof(Dp));
+        assert_invariant(blob.size() == sizeof(Dp));
         reinterpret_cast<Dp*>(blob.data())->~Dp();
         handleMap.erase(handle.getId());
     }
 
     void refreshSwapChain();
+    void collectGarbage();
 
     VulkanContext mContext = {};
-    VulkanBinder mBinder;
+    VulkanPipelineCache mPipelineCache;
+    VulkanBlitter mBlitter;
     VulkanDisposer mDisposer;
     VulkanStagePool mStagePool;
     VulkanFboCache mFramebufferCache;
     VulkanSamplerCache mSamplerCache;
     VulkanRenderTarget* mCurrentRenderTarget = nullptr;
-    VulkanSamplerGroup* mSamplerBindings[VulkanBinder::SAMPLER_BINDING_COUNT] = {};
+    VulkanSamplerGroup* mSamplerBindings[VulkanPipelineCache::SAMPLER_BINDING_COUNT] = {};
     VkDebugReportCallbackEXT mDebugCallback = VK_NULL_HANDLE;
+    VkDebugUtilsMessengerEXT mDebugMessenger = VK_NULL_HANDLE;
 };
 
 } // namespace backend

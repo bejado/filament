@@ -27,6 +27,7 @@
 #include <vector>
 
 #include <backend/DriverEnums.h>
+#include <backend/TargetBufferInfo.h>
 #include <filament/MaterialEnums.h>
 
 #include <filamat/IncludeCallback.h>
@@ -36,6 +37,10 @@
 #include <utils/bitset.h>
 #include <utils/compiler.h>
 #include <utils/CString.h>
+
+namespace utils {
+class JobSystem;
+}
 
 namespace filamat {
 
@@ -63,8 +68,8 @@ public:
     };
 
     enum class TargetLanguage {
-        GLSL,
-        SPIRV
+        GLSL,           // GLSL with OpenGL semantics
+        SPIRV           // GLSL with Vulkan semantics
     };
 
     enum class Optimization {
@@ -106,6 +111,13 @@ protected:
         TargetLanguage targetLanguage;
     };
     std::vector<CodeGenParams> mCodeGenPermutations;
+    // For finding properties and running semantic analysis, we always use the same code gen
+    // permutation. This is the first permutation generated with default arguments passed to matc.
+    const CodeGenParams mSemanticCodeGenParams = {
+        .shaderModel = (int) ShaderModel::GL_ES_30,
+        .targetApi = TargetApi::OPENGL,
+        .targetLanguage = TargetLanguage::SPIRV
+    };
     uint8_t mVariantFilter = 0;
 
     // Keeps track of how many times MaterialBuilder::init() has been called without a call to
@@ -179,6 +191,7 @@ public:
     using RefractionMode = filament::RefractionMode;
     using RefractionType = filament::RefractionType;
 
+    using ShaderQuality = filament::ShaderQuality;
     using BlendingMode = filament::BlendingMode;
     using Shading = filament::Shading;
     using Interpolation = filament::Interpolation;
@@ -188,9 +201,26 @@ public:
 
     using UniformType = filament::backend::UniformType;
     using SamplerType = filament::backend::SamplerType;
+    using SubpassType = filament::backend::SubpassType;
     using SamplerFormat = filament::backend::SamplerFormat;
     using SamplerPrecision = filament::backend::Precision;
     using CullingMode = filament::backend::CullingMode;
+
+    enum class VariableQualifier : uint8_t {
+        OUT
+    };
+
+    enum class OutputTarget : uint8_t {
+        COLOR,
+        DEPTH
+    };
+
+    enum class OutputType : uint8_t {
+        FLOAT,
+        FLOAT2,
+        FLOAT3,
+        FLOAT4
+    };
 
     struct PreprocessorDefine {
         std::string name;
@@ -313,6 +343,9 @@ public:
      *             reporting
      */
     MaterialBuilder& materialVertex(const char* code, size_t line = 0) noexcept;
+
+
+    MaterialBuilder& quality(ShaderQuality quality) noexcept;
 
     //! Set the blending mode for this material.
     MaterialBuilder& blending(BlendingMode blending) noexcept;
@@ -450,34 +483,80 @@ public:
     //! Adds a new preprocessor macro definition to the shader code. Can be called repeatedly.
     MaterialBuilder& shaderDefine(const char* name, const char* value) noexcept;
 
+    //! Add a new fragment shader output variable. Only valid for materials in the POST_PROCESS domain.
+    MaterialBuilder& output(VariableQualifier qualifier, OutputTarget target,
+            OutputType type, const char* name, int location = -1) noexcept;
+
     MaterialBuilder& enableFramebufferFetch() noexcept;
 
-
-    //! Build the material.
-    Package build() noexcept;
+    /**
+     * Build the material. If you are using the Filament engine with this library, you should use
+     * the job system provided by Engine.
+     */
+    Package build(utils::JobSystem& jobSystem) noexcept;
 
 public:
     // The methods and types below are for internal use
     /// @cond never
 
+    /**
+     * Add a subpass parameter to this material.
+     */
+    MaterialBuilder& parameter(SubpassType subpassType, SamplerFormat format, SamplerPrecision
+            precision, const char* name) noexcept;
+    MaterialBuilder& parameter(SubpassType subpassType, SamplerFormat format, const char* name)
+        noexcept;
+    MaterialBuilder& parameter(SubpassType subpassType, SamplerPrecision precision,
+            const char* name) noexcept;
+    MaterialBuilder& parameter(SubpassType subpassType, const char* name) noexcept;
+
     struct Parameter {
-        Parameter() noexcept = default;
+        Parameter() noexcept : parameterType(INVALID) {}
         Parameter(const char* paramName, SamplerType t, SamplerFormat f, SamplerPrecision p)
-                : name(paramName), size(1), samplerType(t), samplerFormat(f), samplerPrecision(p),
-                isSampler(true) { }
+                : name(paramName), size(1), samplerType(t), format(f), precision(p),
+                parameterType(SAMPLER) { }
         Parameter(const char* paramName, UniformType t, size_t typeSize)
-                : name(paramName), size(typeSize), uniformType(t), isSampler(false) { }
+                : name(paramName), size(typeSize), uniformType(t), parameterType(UNIFORM) { }
+        Parameter(const char* paramName, SubpassType t, SamplerFormat f, SamplerPrecision p)
+                : name(paramName), size(1), subpassType(t), format(f), precision(p),
+                parameterType(SUBPASS) { }
         utils::CString name;
         size_t size;
         union {
             UniformType uniformType;
             struct {
-                SamplerType samplerType;
-                SamplerFormat samplerFormat;
-                SamplerPrecision samplerPrecision;
+                union {
+                    SamplerType samplerType;
+                    SubpassType subpassType;
+                };
+                SamplerFormat format;
+                SamplerPrecision precision;
             };
         };
-        bool isSampler;
+        enum {
+            INVALID,
+            UNIFORM,
+            SAMPLER,
+            SUBPASS
+        } parameterType;
+
+        bool isSampler() const { return parameterType == SAMPLER; }
+        bool isUniform() const { return parameterType == UNIFORM; }
+        bool isSubpass() const { return parameterType == SUBPASS; }
+    };
+
+    struct Output {
+        Output() noexcept = default;
+        Output(const char* outputName, VariableQualifier qualifier, OutputTarget target,
+                OutputType type, int location) noexcept
+            : name(outputName), qualifier(qualifier), target(target), type(type),
+            location(location) { }
+
+        utils::CString name;
+        VariableQualifier qualifier;
+        OutputTarget target;
+        OutputType type;
+        int location;
     };
 
     static constexpr size_t MATERIAL_PROPERTIES_COUNT = filament::MATERIAL_PROPERTIES_COUNT;
@@ -485,6 +564,13 @@ public:
 
     using PropertyList = bool[MATERIAL_PROPERTIES_COUNT];
     using VariableList = utils::CString[MATERIAL_VARIABLES_COUNT];
+    using OutputList = std::vector<Output>;
+
+    static constexpr size_t MAX_COLOR_OUTPUT = filament::backend::MRT::MAX_SUPPORTED_RENDER_TARGET_COUNT;
+    static constexpr size_t MAX_DEPTH_OUTPUT = 1;
+    static_assert(MAX_COLOR_OUTPUT == 8,
+            "When updating MRT::TARGET_COUNT, manually update post_process_inputs.fs"
+            " and post_process.fs");
 
     // Preview the first shader generated by the given CodeGenParams.
     // This is used to run Static Code Analysis before generating a package.
@@ -495,6 +581,7 @@ public:
     bool hasExternalSampler() const noexcept;
 
     static constexpr size_t MAX_PARAMETERS_COUNT = 48;
+    static constexpr size_t MAX_SUBPASS_COUNT = 1;
     using ParameterList = Parameter[MAX_PARAMETERS_COUNT];
 
     // returns the number of parameters declared in this material
@@ -525,7 +612,9 @@ private:
     void writeCommonChunks(ChunkContainer& container, MaterialInfo& info) const noexcept;
     void writeSurfaceChunks(ChunkContainer& container) const noexcept;
 
-    bool generateShaders(const std::vector<Variant>& variants, ChunkContainer& container,
+    bool generateShaders(
+            utils::JobSystem& jobSystem,
+            const std::vector<Variant>& variants, ChunkContainer& container,
             const MaterialInfo& info) const noexcept;
 
     bool isLit() const noexcept { return mShading != filament::Shading::UNLIT; }
@@ -565,7 +654,9 @@ private:
     PropertyList mProperties;
     ParameterList mParameters;
     VariableList mVariables;
+    OutputList mOutputs;
 
+    ShaderQuality mShaderQuality = ShaderQuality::DEFAULT;
     BlendingMode mBlendingMode = BlendingMode::OPAQUE;
     BlendingMode mPostLightingBlendingMode = BlendingMode::TRANSPARENT;
     CullingMode mCullingMode = CullingMode::BACK;

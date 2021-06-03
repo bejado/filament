@@ -34,6 +34,7 @@
 #include <utils/Slice.h>
 #include <utils/StructureOfArrays.h>
 #include <utils/Range.h>
+#include <utils/debug.h>
 
 #include <cstddef>
 #include <tsl/robin_set.h>
@@ -64,6 +65,7 @@ public:
     void addEntity(utils::Entity entity);
     void addEntities(const utils::Entity* entities, size_t count);
     void remove(utils::Entity entity);
+    void removeEntities(const utils::Entity* entities, size_t count);
 
     size_t getRenderableCount() const noexcept;
     size_t getLightCount() const noexcept;
@@ -165,8 +167,8 @@ public:
         //  layer            : 4
         //  -- MSB -------------
         uint32_t pack() const {
-            assert(index < 16);
-            assert(layer < 16);
+            assert_invariant(index < 16);
+            assert_invariant(layer < 16);
             return uint8_t(castsShadows)   << 0u    |
                    uint8_t(contactShadows) << 1u    |
                    index                   << 2u    |

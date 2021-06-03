@@ -15,15 +15,9 @@
 
 #define SHADOW_RECEIVER_PLANE_DEPTH_BIAS_MIN_SAMPLING_METHOD    SHADOW_SAMPLING_PCF_MEDIUM
 
-#ifdef TARGET_MOBILE
-  #define SHADOW_SAMPLING_METHOD            SHADOW_SAMPLING_PCF_LOW
-  #define SHADOW_SAMPLING_ERROR             SHADOW_SAMPLING_ERROR_DISABLED
-  #define SHADOW_RECEIVER_PLANE_DEPTH_BIAS  SHADOW_RECEIVER_PLANE_DEPTH_BIAS_DISABLED
-#else
-  #define SHADOW_SAMPLING_METHOD            SHADOW_SAMPLING_PCF_LOW
-  #define SHADOW_SAMPLING_ERROR             SHADOW_SAMPLING_ERROR_DISABLED
-  #define SHADOW_RECEIVER_PLANE_DEPTH_BIAS  SHADOW_RECEIVER_PLANE_DEPTH_BIAS_DISABLED
-#endif
+#define SHADOW_SAMPLING_METHOD            SHADOW_SAMPLING_PCF_LOW
+#define SHADOW_SAMPLING_ERROR             SHADOW_SAMPLING_ERROR_DISABLED
+#define SHADOW_RECEIVER_PLANE_DEPTH_BIAS  SHADOW_RECEIVER_PLANE_DEPTH_BIAS_DISABLED
 
 #if SHADOW_SAMPLING_ERROR == SHADOW_SAMPLING_ERROR_ENABLED
   #undef SHADOW_RECEIVER_PLANE_DEPTH_BIAS
@@ -59,12 +53,12 @@ float samplingBias(float depth, const vec2 rpdb, const vec2 texelSize) {
 #if SHADOW_SAMPLING_ERROR == SHADOW_SAMPLING_ERROR_ENABLED
     // note: if filtering is set to NEAREST, the 2.0 factor below can be changed to 1.0
     float samplingError = min(2.0 * dot(texelSize, abs(rpdb)), 0.01);
-    depth -= samplingError;
+    depth += samplingError;
 #endif
     return depth;
 }
 
-float sampleDepth(const lowp sampler2DArrayShadow map, const uint layer, vec2 base, vec2 dudv, float depth, vec2 rpdb) {
+float sampleDepth(const mediump sampler2DArrayShadow map, const uint layer, vec2 base, vec2 dudv, float depth, vec2 rpdb) {
 #if SHADOW_RECEIVER_PLANE_DEPTH_BIAS == SHADOW_RECEIVER_PLANE_DEPTH_BIAS_ENABLED
  #if SHADOW_SAMPLING_METHOD >= SHADOW_RECEIVER_PLANE_DEPTH_BIAS_MIN_SAMPLING_METHOD
     depth += dot(dudv, rpdb);
@@ -77,7 +71,7 @@ float sampleDepth(const lowp sampler2DArrayShadow map, const uint layer, vec2 ba
 }
 
 #if SHADOW_SAMPLING_METHOD == SHADOW_SAMPLING_PCF_HARD
-float ShadowSample_Hard(const lowp sampler2DArrayShadow map, const uint layer, const vec2 size, const vec3 position) {
+float ShadowSample_Hard(const mediump sampler2DArrayShadow map, const uint layer, const vec2 size, const vec3 position) {
     vec2 rpdb = computeReceiverPlaneDepthBias(position);
     float depth = samplingBias(position.z, rpdb, vec2(1.0) / size);
     return texture(map, vec4(position.xy, layer, clamp(depth, 0.0, 1.0)));
@@ -85,7 +79,7 @@ float ShadowSample_Hard(const lowp sampler2DArrayShadow map, const uint layer, c
 #endif
 
 #if SHADOW_SAMPLING_METHOD == SHADOW_SAMPLING_PCF_LOW
-float ShadowSample_PCF_Low(const lowp sampler2DArrayShadow map, const uint layer, const vec2 size, vec3 position) {
+float ShadowSample_PCF_Low(const mediump sampler2DArrayShadow map, const uint layer, const vec2 size, vec3 position) {
     //  Castaño, 2013, "Shadow Mapping Summary Part 1"
     vec2 texelSize = vec2(1.0) / size;
 
@@ -122,7 +116,7 @@ float ShadowSample_PCF_Low(const lowp sampler2DArrayShadow map, const uint layer
 #endif
 
 #if SHADOW_SAMPLING_METHOD == SHADOW_SAMPLING_PCF_MEDIUM
-float ShadowSample_PCF_Medium(const lowp sampler2DArrayShadow map, const uint layer, const vec2 size, vec3 position) {
+float ShadowSample_PCF_Medium(const mediump sampler2DArrayShadow map, const uint layer, const vec2 size, vec3 position) {
     //  Castaño, 2013, "Shadow Mapping Summary Part 1"
     vec2 texelSize = vec2(1.0) / size;
 
@@ -165,7 +159,7 @@ float ShadowSample_PCF_Medium(const lowp sampler2DArrayShadow map, const uint la
 #endif
 
 #if SHADOW_SAMPLING_METHOD == SHADOW_SAMPLING_PCF_HIGH
-float ShadowSample_PCF_High(const lowp sampler2DArrayShadow map, const uint layer, const vec2 size, vec3 position) {
+float ShadowSample_PCF_High(const mediump sampler2DArrayShadow map, const uint layer, const vec2 size, vec3 position) {
     //  Castaño, 2013, "Shadow Mapping Summary Part 1"
     vec2 texelSize = vec2(1.0) / size;
 
@@ -256,9 +250,9 @@ void initScreenSpaceRay(out ScreenSpaceRay ray, highp vec3 wsRayStart, vec3 wsRa
     highp vec4 csViewRayEnd = csRayStart + viewToClip * vec4(0.0, 0.0, wsRayLength, 0.0);
 
     // ray start/end in screen space
-    ray.ssRayStart = csRayStart.xyz * 1.0 / csRayStart.w;
-    ray.ssRayEnd = csRayEnd.xyz * 1.0 / csRayEnd.w;
-    ray.ssViewRayEnd = csViewRayEnd.xyz * 1.0 / csViewRayEnd.w;
+    ray.ssRayStart = csRayStart.xyz * (1.0 / csRayStart.w);
+    ray.ssRayEnd = csRayEnd.xyz * (1.0 / csRayEnd.w);
+    ray.ssViewRayEnd = csViewRayEnd.xyz * (1.0 / csViewRayEnd.w);
 
     // convert all to uv (texture) space
     highp vec3 uvRayEnd = ray.ssRayEnd.xyz * 0.5 + 0.5;
@@ -281,17 +275,17 @@ float screenSpaceContactShadow(vec3 lightDirection) {
     // tolerance
     float tolerance = abs(rayData.ssViewRayEnd.z - rayData.ssRayStart.z) * dt * 0.5;
 
-    // dithter the ray with interleaved grandient noise
+    // dither the ray with interleaved gradient noise
     const vec3 m = vec3(0.06711056, 0.00583715, 52.9829189);
     float dither = fract(m.z * fract(dot(gl_FragCoord.xy, m.xy))) - 0.5;
 
-    // normalized postion on the ray (0 to 1)
+    // normalized position on the ray (0 to 1)
     float t = dt * dither + dt;
 
     highp vec3 ray;
     for (uint i = 0u ; i < kStepCount ; i++, t += dt) {
         ray = rayData.uvRayStart + rayData.uvRay * t;
-        float z = textureLod(light_structure, uvToRenderTargetUV(ray.xy), 0.0).r;
+        float z = 1.0 - textureLod(light_structure, uvToRenderTargetUV(ray.xy), 0.0).r;
         float dz = ray.z - z;
         if (abs(tolerance - dz) < tolerance) {
             occlusion = 1.0;
@@ -307,6 +301,32 @@ float screenSpaceContactShadow(vec3 lightDirection) {
 }
 
 //------------------------------------------------------------------------------
+// VSM
+//------------------------------------------------------------------------------
+
+highp float linstep(const highp float a, const highp float b, const highp float v) {
+    return clamp((v - a) / (b - a), 0.0, 1.0);
+}
+
+highp float reduceLightBleed(const highp float pMax, const highp float amount) {
+    return linstep(amount, 1.0, pMax);
+}
+
+highp float chebyshevUpperBound(const highp vec2 moments, const highp float mean,
+        const highp float minVariance, const highp float lightBleedReduction) {
+    // Donnelly and Lauritzen 2006, "Variance Shadow Maps"
+
+    highp float variance = moments.y - (moments.x * moments.x);
+    variance = max(variance, minVariance);
+
+    highp float d = mean - moments.x;
+    highp float pMax = variance / (variance + d * d);
+    pMax = reduceLightBleed(pMax, lightBleedReduction);
+
+    return mean <= moments.x ? 1.0 : pMax;
+}
+
+//------------------------------------------------------------------------------
 // Shadow sampling dispatch
 //------------------------------------------------------------------------------
 
@@ -315,8 +335,9 @@ float screenSpaceContactShadow(vec3 lightDirection) {
  * space. The output is a filtered visibility factor that can be used to multiply
  * the light intensity.
  */
-float shadow(const lowp sampler2DArrayShadow shadowMap, const uint layer, const vec3 shadowPosition) {
+float shadow(const mediump sampler2DArrayShadow shadowMap, const uint layer, vec3 shadowPosition) {
     vec2 size = vec2(textureSize(shadowMap, 0));
+    // note: shadowPosition.z is in the [1, 0] range (reversed Z)
 #if SHADOW_SAMPLING_METHOD == SHADOW_SAMPLING_PCF_HARD
     return ShadowSample_Hard(shadowMap, layer, size, shadowPosition);
 #elif SHADOW_SAMPLING_METHOD == SHADOW_SAMPLING_PCF_LOW
@@ -326,4 +347,22 @@ float shadow(const lowp sampler2DArrayShadow shadowMap, const uint layer, const 
 #elif SHADOW_SAMPLING_METHOD == SHADOW_SAMPLING_PCF_HIGH
     return ShadowSample_PCF_High(shadowMap, layer, size, shadowPosition);
 #endif
+}
+
+highp float shadowVsm(const highp sampler2DArray shadowMap, const uint layer,
+        const highp vec3 shadowPosition) {
+    highp vec2 moments = texture(shadowMap, vec3(shadowPosition.xy, layer)).xy;
+    highp float depth = shadowPosition.z;
+
+    // depth must be clamped to support floating-point depth formats. This is to avoid comparing a
+    // value from the depth texture (which is never greater than 1.0) with a greater-than-one
+    // comparison value (which is possible with floating-point formats).
+    depth = min(depth, 1.0f);
+
+    // TODO: bias and lightBleedReduction should be uniforms
+    const float bias = 0.01;
+    const float lightBleedReduction = 0.2;
+
+    const float minVariance = bias * 0.001;
+    return chebyshevUpperBound(moments, depth, minVariance, lightBleedReduction);
 }

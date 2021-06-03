@@ -33,7 +33,7 @@ void main() {
 
         // We don't need to normalize here, even if there's a scale in the matrix
         // because we ensure the worldFromModelNormalMatrix pre-scales the normal such that
-        // all its components are < 1.0. This precents the bitangent to exceed the range of fp16
+        // all its components are < 1.0. This prevents the bitangent to exceed the range of fp16
         // in the fragment shader, where we renormalize after interpolation
         vertex_worldTangent.xyz = objectUniforms.worldFromModelNormalMatrix * vertex_worldTangent.xyz;
         vertex_worldTangent.w = mesh_tangents.w;
@@ -92,7 +92,7 @@ void main() {
             frameUniforms.lightDirection, frameUniforms.shadowBias.y, getLightFromWorldMatrix());
 #endif
 
-#if defined(HAS_SHADOWING)
+#if defined(HAS_SHADOWING) && defined(HAS_DYNAMIC_LIGHTING)
     for (uint l = 0u; l < uint(MAX_SHADOW_CASTING_SPOTS); l++) {
         vec3 dir = shadowUniforms.directionShadowBias[l].xyz;
         float bias = shadowUniforms.directionShadowBias[l].w;
@@ -108,7 +108,7 @@ void main() {
     gl_Position = getClipFromWorldMatrix() * getWorldPosition(material);
 #endif
 
-#ifdef MATERIAL_HAS_CLIP_SPACE_TRANSFORM
+#if defined(MATERIAL_HAS_CLIP_SPACE_TRANSFORM)
     gl_Position = getClipSpaceTransform(material) * gl_Position;
 #endif
 
@@ -116,8 +116,9 @@ void main() {
     vertex_position = gl_Position;
 
 #if defined(TARGET_VULKAN_ENVIRONMENT)
-    // In Vulkan, clip-space Z is [0,w] rather than [-w,+w] and Y is flipped.
+    // In Vulkan, clip space is Y-down. In OpenGL and Metal, clip space is Y-up.
     gl_Position.y = -gl_Position.y;
-    gl_Position.z = (gl_Position.z + gl_Position.w) * 0.5;
 #endif
+
+    gl_Position.z = dot(gl_Position.zw, frameUniforms.clipControl.xy);
 }

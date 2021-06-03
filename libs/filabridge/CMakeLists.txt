@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.19)
 project(filabridge)
 
 set(TARGET         filabridge)
@@ -28,13 +28,6 @@ target_include_directories(${TARGET} PUBLIC ${PUBLIC_HDR_DIR})
 target_link_libraries(${TARGET} utils)
 target_link_libraries(${TARGET} math)
 target_link_libraries(${TARGET} backend_headers)
-
-# ==================================================================================================
-# Compiler flags
-# ==================================================================================================
-if (NOT WIN32)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
-endif()
 
 # ==================================================================================================
 # Installation

@@ -17,35 +17,25 @@
 #include <bluevk/BlueVK.h> // must be included before vk_mem_alloc
 
 #pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated"
 #pragma clang diagnostic ignored "-Wundef"
 #pragma clang diagnostic ignored "-Wunused-variable"
-#pragma clang diagnostic ignored "-Wmissing-field-initializers"
-#pragma clang diagnostic ignored "-Wtautological-compare"
-#define VMA_IMPLEMENTATION
-#include <cstdio>
 #include "vk_mem_alloc.h"
 #pragma clang diagnostic pop
 
 #include "VulkanContext.h"
+#include "VulkanHandles.h"
 #include "VulkanUtility.h"
 
 #include <utils/Panic.h>
 
+#ifndef VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME
+#define VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME "VK_KHR_portability_subset"
+#endif
+
+using namespace bluevk;
+
 namespace filament {
 namespace backend {
-
-VulkanCmdFence::VulkanCmdFence(VkDevice device, bool signaled) : device(device) {
-    VkFenceCreateInfo fenceCreateInfo { .sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
-    if (signaled) {
-        fenceCreateInfo.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    }
-    vkCreateFence(device, &fenceCreateInfo, VKALLOC, &fence);
-}
-
- VulkanCmdFence::~VulkanCmdFence() {
-    vkDestroyFence(device, fence, VKALLOC);
-}
 
 void selectPhysicalDevice(VulkanContext& context) {
     uint32_t physicalDeviceCount = 0;
@@ -90,7 +80,6 @@ void selectPhysicalDevice(VulkanContext& context) {
                 continue;
             }
             if (props.queueFlags & VK_QUEUE_GRAPHICS_BIT) {
-                assert(props.timestampValidBits > 0);
                 context.graphicsQueueFamilyIndex = j;
             }
         }
@@ -115,6 +104,18 @@ void selectPhysicalDevice(VulkanContext& context) {
             if (!strcmp(extensions[k].extensionName, VK_EXT_DEBUG_MARKER_EXTENSION_NAME)) {
                 context.debugMarkersSupported = true;
             }
+            if (!strcmp(extensions[k].extensionName, VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME)) {
+                context.portabilitySubsetSupported = true;
+            }
+            if (!strcmp(extensions[k].extensionName, VK_KHR_MAINTENANCE1_EXTENSION_NAME)) {
+                context.maintenanceSupported[0] = true;
+            }
+            if (!strcmp(extensions[k].extensionName, VK_KHR_MAINTENANCE2_EXTENSION_NAME)) {
+                context.maintenanceSupported[1] = true;
+            }
+            if (!strcmp(extensions[k].extensionName, VK_KHR_MAINTENANCE3_EXTENSION_NAME)) {
+                context.maintenanceSupported[2] = true;
+            }
         }
         if (!supportsSwapchain) continue;
 
@@ -122,6 +123,21 @@ void selectPhysicalDevice(VulkanContext& context) {
         context.physicalDevice = physicalDevice;
         vkGetPhysicalDeviceFeatures(physicalDevice, &context.physicalDeviceFeatures);
         vkGetPhysicalDeviceMemoryProperties(physicalDevice, &context.memoryProperties);
+
+        // Print some driver or MoltenVK information if it is available.
+        if (vkGetPhysicalDeviceProperties2KHR) {
+            VkPhysicalDeviceDriverProperties driverProperties = {
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_DRIVER_PROPERTIES,
+            };
+            VkPhysicalDeviceProperties2 physicalDeviceProperties2 = {
+                .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2,
+                .pNext = &driverProperties,
+            };
+            vkGetPhysicalDeviceProperties2KHR(physicalDevice, &physicalDeviceProperties2);
+            utils::slog.i << "Vulkan device driver: "
+                << driverProperties.driverName << " "
+                << driverProperties.driverInfo << utils::io::endl;
+        }
 
         // Print out some properties of the GPU for diagnostic purposes.
         //
@@ -145,9 +161,9 @@ void selectPhysicalDevice(VulkanContext& context) {
         utils::slog.i << "Selected physical device '"
                 << context.physicalDeviceProperties.deviceName
                 << "' from " << physicalDeviceCount << " physical devices. "
-                << "(vendor 0x" << utils::io::hex << vendorID << ", "
-                << "device 0x" << deviceID << ", "
-                << "driver 0x" << driverVersion << ", "
+                << "(vendor " << utils::io::hex << vendorID << ", "
+                << "device " << deviceID << ", "
+                << "driver " << driverVersion << ", "
                 << utils::io::dec << "api " << major << "." << minor << ")"
                 << utils::io::endl;
         return;
@@ -162,8 +178,20 @@ void createLogicalDevice(VulkanContext& context) {
     std::vector<const char*> deviceExtensionNames = {
         VK_KHR_SWAPCHAIN_EXTENSION_NAME,
     };
-    if (context.debugMarkersSupported) {
+    if (context.debugMarkersSupported && !context.debugUtilsSupported) {
         deviceExtensionNames.push_back(VK_EXT_DEBUG_MARKER_EXTENSION_NAME);
+    }
+    if (context.portabilitySubsetSupported) {
+        deviceExtensionNames.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+    }
+    if (context.maintenanceSupported[0]) {
+        deviceExtensionNames.push_back(VK_KHR_MAINTENANCE1_EXTENSION_NAME);
+    }
+    if (context.maintenanceSupported[1]) {
+        deviceExtensionNames.push_back(VK_KHR_MAINTENANCE2_EXTENSION_NAME);
+    }
+    if (context.maintenanceSupported[2]) {
+        deviceExtensionNames.push_back(VK_KHR_MAINTENANCE3_EXTENSION_NAME);
     }
     deviceQueueCreateInfo->sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     deviceQueueCreateInfo->queueFamilyIndex = context.graphicsQueueFamilyIndex;
@@ -177,6 +205,7 @@ void createLogicalDevice(VulkanContext& context) {
     // consequences let's just enable the features we need.
     const auto& supportedFeatures = context.physicalDeviceFeatures;
     VkPhysicalDeviceFeatures enabledFeatures {
+        .samplerAnisotropy = supportedFeatures.samplerAnisotropy,
         .textureCompressionETC2 = supportedFeatures.textureCompressionETC2,
         .textureCompressionBC = supportedFeatures.textureCompressionBC,
     };
@@ -184,6 +213,16 @@ void createLogicalDevice(VulkanContext& context) {
     deviceCreateInfo.pEnabledFeatures = &enabledFeatures;
     deviceCreateInfo.enabledExtensionCount = (uint32_t)deviceExtensionNames.size();
     deviceCreateInfo.ppEnabledExtensionNames = deviceExtensionNames.data();
+
+    VkPhysicalDevicePortabilitySubsetFeaturesKHR portability = {
+        .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PORTABILITY_SUBSET_FEATURES_KHR,
+        .pNext = nullptr,
+        .mutableComparisonSamplers = VK_TRUE,
+    };
+    if (context.portabilitySubsetSupported) {
+        deviceCreateInfo.pNext = &portability;
+    }
+
     VkResult result = vkCreateDevice(context.physicalDevice, &deviceCreateInfo, VKALLOC,
             &context.device);
     ASSERT_POSTCONDITION(result == VK_SUCCESS, "vkCreateDevice error.");
@@ -227,248 +266,20 @@ void createLogicalDevice(VulkanContext& context) {
         .vkDestroyBuffer = vkDestroyBuffer,
         .vkCreateImage = vkCreateImage,
         .vkDestroyImage = vkDestroyImage,
+        .vkCmdCopyBuffer = vkCmdCopyBuffer,
         .vkGetBufferMemoryRequirements2KHR = vkGetBufferMemoryRequirements2KHR,
         .vkGetImageMemoryRequirements2KHR = vkGetImageMemoryRequirements2KHR
     };
     const VmaAllocatorCreateInfo allocatorInfo {
         .physicalDevice = context.physicalDevice,
         .device = context.device,
-        .pVulkanFunctions = &funcs
+        .pVulkanFunctions = &funcs,
+        .pRecordSettings = nullptr,
+        .instance = context.instance
     };
     vmaCreateAllocator(&allocatorInfo, &context.allocator);
-
-    // Create the work command buffer and fence for work unrelated to the swap chain.
-    const VkCommandBufferAllocateInfo allocateInfo = {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-        .commandPool = context.commandPool,
-        .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-        .commandBufferCount = 1
-    };
-    const VkCommandBufferBeginInfo binfo { .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-    vkAllocateCommandBuffers(context.device, &allocateInfo, &context.work.cmdbuffer);
-    vkBeginCommandBuffer(context.work.cmdbuffer, &binfo);
 }
 
-void getPresentationQueue(VulkanContext& context, VulkanSurfaceContext& sc) {
-    uint32_t queueFamiliesCount;
-    vkGetPhysicalDeviceQueueFamilyProperties(context.physicalDevice, &queueFamiliesCount, nullptr);
-    std::vector<VkQueueFamilyProperties> queueFamiliesProperties(queueFamiliesCount);
-    vkGetPhysicalDeviceQueueFamilyProperties(context.physicalDevice, &queueFamiliesCount,
-            queueFamiliesProperties.data());
-    uint32_t presentQueueFamilyIndex = 0xffff;
-
-    // We prefer the graphics and presentation queues to be the same, so first check if that works.
-    // On most platforms they must be the same anyway, and this avoids issues with MoltenVK.
-    VkBool32 supported = VK_FALSE;
-    vkGetPhysicalDeviceSurfaceSupportKHR(context.physicalDevice, context.graphicsQueueFamilyIndex,
-            sc.surface, &supported);
-    if (supported) {
-        presentQueueFamilyIndex = context.graphicsQueueFamilyIndex;
-    }
-
-    // Otherwise fall back to separate graphics and presentation queues.
-    if (presentQueueFamilyIndex == 0xffff) {
-        for (uint32_t j = 0; j < queueFamiliesCount; ++j) {
-            vkGetPhysicalDeviceSurfaceSupportKHR(context.physicalDevice, j, sc.surface, &supported);
-            if (supported) {
-                presentQueueFamilyIndex = j;
-                break;
-            }
-        }
-    }
-    ASSERT_POSTCONDITION(presentQueueFamilyIndex != 0xffff,
-            "This physical device does not support the presentation queue.");
-    if (context.graphicsQueueFamilyIndex != presentQueueFamilyIndex) {
-
-        // TODO: Strictly speaking, this code path is incorrect. However it is not triggered on any
-        // Android devices that we've tested with, nor with MoltenVK.
-        //
-        // This is incorrect because we created the logical device early on, before we had a handle
-        // to the rendering surface. Therefore the device was not created with the presentation
-        // queue family index included in VkDeviceQueueCreateInfo.
-        //
-        // This is non-trivial to fix because the driver API allows clients to do certain things
-        // (e.g. upload a vertex buffer) before the swap chain is created.
-        //
-        // https://github.com/google/filament/issues/1532
-        vkGetDeviceQueue(context.device, presentQueueFamilyIndex, 0, &sc.presentQueue);
-
-    } else {
-        sc.presentQueue = context.graphicsQueue;
-    }
-    ASSERT_POSTCONDITION(sc.presentQueue, "Unable to obtain presentation queue.");
-}
-
-void getSurfaceCaps(VulkanContext& context, VulkanSurfaceContext& sc) {
-    VkResult result = vkGetPhysicalDeviceSurfaceCapabilitiesKHR(context.physicalDevice,
-            sc.surface, &sc.surfaceCapabilities);
-    ASSERT_POSTCONDITION(result == VK_SUCCESS, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR error.");
-    ASSERT_POSTCONDITION(
-            sc.surfaceCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-            "Vulkan surface doesn't support VK_IMAGE_USAGE_TRANSFER_DST_BIT.");
-    uint32_t surfaceFormatsCount;
-    result = vkGetPhysicalDeviceSurfaceFormatsKHR(context.physicalDevice, sc.surface,
-            &surfaceFormatsCount, nullptr);
-    ASSERT_POSTCONDITION(result == VK_SUCCESS, "vkGetPhysicalDeviceSurfaceFormatsKHR count error.");
-    sc.surfaceFormats.resize(surfaceFormatsCount);
-    result = vkGetPhysicalDeviceSurfaceFormatsKHR(context.physicalDevice, sc.surface,
-            &surfaceFormatsCount, sc.surfaceFormats.data());
-    ASSERT_POSTCONDITION(result == VK_SUCCESS, "vkGetPhysicalDeviceSurfaceFormatsKHR error.");
-}
-
-void createSwapChain(VulkanContext& context, VulkanSurfaceContext& surfaceContext) {
-    getSurfaceCaps(context, surfaceContext);
-
-    // The general advice is to require one more than the minimum swap chain length, since the
-    // absolute minimum could easily require waiting for a driver or presentation layer to release
-    // the previous frame's buffer. The only situation in which we'd ask for the minimum length is
-    // when using a MAILBOX presentation strategy for low-latency situations where tearing is
-    // acceptable.
-    const uint32_t maxImageCount = surfaceContext.surfaceCapabilities.maxImageCount;
-    const uint32_t minImageCount = surfaceContext.surfaceCapabilities.minImageCount;
-    uint32_t desiredImageCount = minImageCount + 1;
-
-    // According to section 30.5 of VK 1.1, maxImageCount of zero means "that there is no limit on
-    // the number of images, though there may be limits related to the total amount of memory used
-    // by presentable images."
-    if (maxImageCount != 0 && desiredImageCount > maxImageCount) {
-        utils::slog.e << "Swap chain does not support " << desiredImageCount << " images.\n";
-        desiredImageCount = surfaceContext.surfaceCapabilities.minImageCount;
-    }
-    surfaceContext.surfaceFormat = surfaceContext.surfaceFormats[0];
-    for (const VkSurfaceFormatKHR& format : surfaceContext.surfaceFormats) {
-        if (format.format == VK_FORMAT_R8G8B8A8_UNORM) {
-            surfaceContext.surfaceFormat = format;
-            break;
-        }
-    }
-    const auto compositionCaps = surfaceContext.surfaceCapabilities.supportedCompositeAlpha;
-    const auto compositeAlpha = (compositionCaps & VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR) ?
-            VK_COMPOSITE_ALPHA_INHERIT_BIT_KHR : VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR;
-
-    // Create the low-level swap chain.
-    const auto size = surfaceContext.surfaceCapabilities.currentExtent;
-    VkSwapchainCreateInfoKHR createInfo {
-        .sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR,
-        .surface = surfaceContext.surface,
-        .minImageCount = desiredImageCount,
-        .imageFormat = surfaceContext.surfaceFormat.format,
-        .imageColorSpace = surfaceContext.surfaceFormat.colorSpace,
-        .imageExtent = size,
-        .imageArrayLayers = 1,
-        .imageUsage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        .preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR,
-        .compositeAlpha = compositeAlpha,
-        .presentMode = VK_PRESENT_MODE_FIFO_KHR,
-        .clipped = VK_TRUE
-    };
-    VkSwapchainKHR swapchain;
-    VkResult result = vkCreateSwapchainKHR(context.device, &createInfo, VKALLOC, &swapchain);
-    ASSERT_POSTCONDITION(result == VK_SUCCESS, "vkGetPhysicalDeviceSurfaceFormatsKHR error.");
-    surfaceContext.swapchain = swapchain;
-
-    // Extract the VkImage handles from the swap chain.
-    uint32_t imageCount;
-    result = vkGetSwapchainImagesKHR(context.device, swapchain, &imageCount, nullptr);
-    ASSERT_POSTCONDITION(result == VK_SUCCESS, "vkGetSwapchainImagesKHR count error.");
-    surfaceContext.swapContexts.resize(imageCount);
-    std::vector<VkImage> images(imageCount);
-    result = vkGetSwapchainImagesKHR(context.device, swapchain, &imageCount,
-            images.data());
-    ASSERT_POSTCONDITION(result == VK_SUCCESS, "vkGetSwapchainImagesKHR error.");
-    for (size_t i = 0; i < images.size(); ++i) {
-        surfaceContext.swapContexts[i].invalid = true;
-        surfaceContext.swapContexts[i].attachment = {
-            .format = surfaceContext.surfaceFormat.format,
-            .image = images[i],
-            .view = {},
-            .memory = {},
-            .texture = {},
-            .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
-        };
-    }
-    utils::slog.i
-            << "vkCreateSwapchain"
-            << ": " << size.width << "x" << size.height
-            << ", " << surfaceContext.surfaceFormat.format
-            << ", " << surfaceContext.surfaceFormat.colorSpace
-            << ", " << imageCount
-            << utils::io::endl;
-
-    // Create image views.
-    VkImageViewCreateInfo ivCreateInfo = {};
-    ivCreateInfo.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    ivCreateInfo.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    ivCreateInfo.format = surfaceContext.surfaceFormat.format;
-    ivCreateInfo.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    ivCreateInfo.subresourceRange.levelCount = 1;
-    ivCreateInfo.subresourceRange.layerCount = 1;
-    for (size_t i = 0; i < images.size(); ++i) {
-        ivCreateInfo.image = images[i];
-        result = vkCreateImageView(context.device, &ivCreateInfo, VKALLOC,
-                &surfaceContext.swapContexts[i].attachment.view);
-        ASSERT_POSTCONDITION(result == VK_SUCCESS, "vkCreateImageView error.");
-    }
-
-    createSemaphore(context.device, &surfaceContext.imageAvailable);
-    createSemaphore(context.device, &surfaceContext.renderingFinished);
-
-    // Allocate command buffers.
-    VkCommandBufferAllocateInfo allocateInfo = {};
-    allocateInfo.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    allocateInfo.commandPool = context.commandPool;
-    allocateInfo.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    allocateInfo.commandBufferCount = (uint32_t) surfaceContext.swapContexts.size();
-    std::vector<VkCommandBuffer> cmdbufs(allocateInfo.commandBufferCount);
-    result = vkAllocateCommandBuffers(context.device, &allocateInfo, cmdbufs.data());
-    ASSERT_POSTCONDITION(result == VK_SUCCESS, "vkAllocateCommandBuffers error.");
-    for (uint32_t i = 0; i < allocateInfo.commandBufferCount; ++i) {
-        surfaceContext.swapContexts[i].commands.cmdbuffer = cmdbufs[i];
-    }
-
-    createFinalDepthBuffer(context, surfaceContext, context.finalDepthFormat);
-}
-
-void destroySwapChain(VulkanContext& context, VulkanSurfaceContext& surfaceContext,
-        VulkanDisposer& disposer) {
-    waitForIdle(context);
-    for (SwapContext& swapContext : surfaceContext.swapContexts) {
-        disposer.release(swapContext.commands.resources);
-        vkFreeCommandBuffers(context.device, context.commandPool, 1,
-                &swapContext.commands.cmdbuffer);
-        swapContext.commands.fence.reset();
-        vkDestroyImageView(context.device, swapContext.attachment.view, VKALLOC);
-        swapContext.commands.fence = VK_NULL_HANDLE;
-        swapContext.attachment.view = VK_NULL_HANDLE;
-    }
-    vkDestroySwapchainKHR(context.device, surfaceContext.swapchain, VKALLOC);
-    vkDestroySemaphore(context.device, surfaceContext.imageAvailable, VKALLOC);
-    vkDestroySemaphore(context.device, surfaceContext.renderingFinished, VKALLOC);
-
-    vkDestroyImageView(context.device, surfaceContext.depth.view, VKALLOC);
-    vkDestroyImage(context.device, surfaceContext.depth.image, VKALLOC);
-    vkFreeMemory(context.device, surfaceContext.depth.memory, VKALLOC);
-}
-
-void transitionSwapChain(VulkanContext& context) {
-    VulkanSurfaceContext& surface = *context.currentSurface;
-    SwapContext& swapContext = surface.swapContexts[surface.currentSwapIndex];
-    VkImageMemoryBarrier barrier {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .newLayout = swapContext.attachment.layout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = swapContext.attachment.image,
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-            .levelCount = 1,
-            .layerCount = 1,
-        },
-    };
-    vkCmdPipelineBarrier(context.currentCommands->cmdbuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-}
 
 uint32_t selectMemoryType(VulkanContext& context, uint32_t flags, VkFlags reqs) {
     for (uint32_t i = 0; i < VK_MAX_MEMORY_TYPES; i++) {
@@ -483,9 +294,9 @@ uint32_t selectMemoryType(VulkanContext& context, uint32_t flags, VkFlags reqs) 
     return (uint32_t) ~0ul;
 }
 
-SwapContext& getSwapContext(VulkanContext& context) {
-    VulkanSurfaceContext& surface = *context.currentSurface;
-    return surface.swapContexts[surface.currentSwapIndex];
+VulkanAttachment& getSwapChainAttachment(VulkanContext& context) {
+    VulkanSwapChain& surface = *context.currentSurface;
+    return surface.attachments[surface.currentSwapIndex];
 }
 
 void waitForIdle(VulkanContext& context) {
@@ -493,118 +304,8 @@ void waitForIdle(VulkanContext& context) {
     if (!context.device) {
         return;
     }
-
-    // Flush the work command buffer and wait for it to finish.
-    flushWorkCommandBuffer(context);
-    acquireWorkCommandBuffer(context);
-
-    // Wait for submitted command buffer(s) to finish.
-    if (context.currentSurface) {
-        VkFence fences[4];
-        uint32_t nfences = 0;
-        auto& surfaceContext = *context.currentSurface;
-        for (auto& swapContext : surfaceContext.swapContexts) {
-            assert(nfences < 4);
-            if (swapContext.commands.fence && swapContext.commands.fence->submitted) {
-                fences[nfences++] = swapContext.commands.fence->fence;
-                swapContext.commands.fence->submitted = false;
-            }
-        }
-        if (nfences > 0) {
-            vkWaitForFences(context.device, nfences, fences, VK_FALSE, ~0ull);
-        }
-
-        // Next flush the active command buffer and wait for it to finish.
-        if (context.currentCommands) {
-            flushCommandBuffer(context);
-        }
-    }
-}
-
-bool acquireSwapCommandBuffer(VulkanContext& context) {
-    // Ask Vulkan for the next image in the swap chain and update the currentSwapIndex.
-    VulkanSurfaceContext& surface = *context.currentSurface;
-    VkResult result = vkAcquireNextImageKHR(context.device, surface.swapchain,
-            UINT64_MAX, surface.imageAvailable, VK_NULL_HANDLE, &surface.currentSwapIndex);
-
-    // We should be notified of a suboptimal surface, but it should not cause a cascade of
-    // log messages or a loop of re-creations.
-    if (result == VK_SUBOPTIMAL_KHR && !surface.suboptimal) {
-        utils::slog.w << "Vulkan Driver: Suboptimal swap chain." << utils::io::endl;
-        surface.suboptimal = true;
-    }
-
-    // The surface can be "out of date" when it has been resized, which is not an error.
-    if (result == VK_ERROR_OUT_OF_DATE_KHR) {
-        return false;
-    }
-
-    assert(result == VK_SUCCESS || result == VK_SUBOPTIMAL_KHR);
-
-    SwapContext& swap = getSwapContext(context);
-
-    // Ensure that the previous submission of this command buffer has finished.
-    auto& cmdfence = swap.commands.fence;
-    if (cmdfence) {
-        result = vkWaitForFences(context.device, 1, &cmdfence->fence, VK_FALSE, UINT64_MAX);
-        ASSERT_POSTCONDITION(result == VK_SUCCESS, "vkWaitForFences error.");
-    }
-
-     cmdfence.reset(new VulkanCmdFence(context.device));
-
-    // Restart the command buffer.
-    VkCommandBuffer cmdbuffer = swap.commands.cmdbuffer;
-    VkResult error = vkResetCommandBuffer(cmdbuffer, 0);
-    ASSERT_POSTCONDITION(!error, "vkResetCommandBuffer error.");
-    VkCommandBufferBeginInfo beginInfo {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
-    };
-    error = vkBeginCommandBuffer(cmdbuffer, &beginInfo);
-    ASSERT_POSTCONDITION(!error, "vkBeginCommandBuffer error.");
-    context.currentCommands = &swap.commands;
-    return true;
-}
-
-// Flushes the current command buffer and waits for it to finish executing.
-void flushCommandBuffer(VulkanContext& context) {
-    VulkanSurfaceContext& surface = *context.currentSurface;
-    SwapContext& swapContext = surface.swapContexts[surface.currentSwapIndex];
-
-    transitionSwapChain(context);
-
-    // Submit the command buffer.
-    VkResult error = vkEndCommandBuffer(context.currentCommands->cmdbuffer);
-    ASSERT_POSTCONDITION(!error, "vkEndCommandBuffer error.");
-    VkPipelineStageFlags waitDestStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    VkSubmitInfo submitInfo {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .pWaitDstStageMask = &waitDestStageMask,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &context.currentCommands->cmdbuffer,
-    };
-
-    auto& cmdfence = swapContext.commands.fence;
-    std::unique_lock<utils::Mutex> lock(cmdfence->mutex);
-    error = vkQueueSubmit(context.graphicsQueue, 1, &submitInfo, cmdfence->fence);
-    lock.unlock();
-    ASSERT_POSTCONDITION(!error, "vkQueueSubmit error.");
-    swapContext.invalid = true;
-    cmdfence->condition.notify_all();
-
-    // Restart the command buffer.
-    error = vkWaitForFences(context.device, 1, &cmdfence->fence, VK_FALSE, UINT64_MAX);
-    ASSERT_POSTCONDITION(!error, "vkWaitForFences error.");
-    error = vkResetFences(context.device, 1, &cmdfence->fence);
-    ASSERT_POSTCONDITION(!error, "vkResetFences error.");
-    error = vkResetCommandBuffer(context.currentCommands->cmdbuffer, 0);
-    ASSERT_POSTCONDITION(!error, "vkResetCommandBuffer error.");
-    VkCommandBufferBeginInfo beginInfo {
-        .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
-        .flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT,
-    };
-    error = vkBeginCommandBuffer(context.currentCommands->cmdbuffer, &beginInfo);
-    ASSERT_POSTCONDITION(!error, "vkBeginCommandBuffer error.");
+    context.commands->flush();
+    context.commands->wait();
 }
 
 VkFormat findSupportedFormat(VulkanContext& context, const std::vector<VkFormat>& candidates,
@@ -621,113 +322,6 @@ VkFormat findSupportedFormat(VulkanContext& context, const std::vector<VkFormat>
         }
     }
     return VK_FORMAT_UNDEFINED;
-}
-
-VkCommandBuffer acquireWorkCommandBuffer(VulkanContext& context) {
-    VulkanCommandBuffer& work = context.work;
-    const VkCommandBufferBeginInfo binfo { .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO };
-    if (work.fence && work.fence->submitted) {
-        work.fence->submitted = false;
-        vkWaitForFences(context.device, 1, &work.fence->fence, VK_FALSE, UINT64_MAX);
-        vkResetCommandBuffer(work.cmdbuffer, 0);
-        vkBeginCommandBuffer(work.cmdbuffer, &binfo);
-    }
-    work.fence.reset(new VulkanCmdFence(context.device));
-    return work.cmdbuffer;
-}
-
-void flushWorkCommandBuffer(VulkanContext& context) {
-    VulkanCommandBuffer& work = context.work;
-    ASSERT_PRECONDITION(!work.fence->submitted, "Flushed the work buffer more than once.");
-    const VkPipelineStageFlags waitDestStageMask = VK_PIPELINE_STAGE_TRANSFER_BIT;
-    VkSubmitInfo submitInfo {
-        .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
-        .pWaitDstStageMask = &waitDestStageMask,
-        .commandBufferCount = 1,
-        .pCommandBuffers = &work.cmdbuffer,
-    };
-    vkEndCommandBuffer(work.cmdbuffer);
-    vkQueueSubmit(context.graphicsQueue, 1, &submitInfo, work.fence->fence);
-    work.fence->submitted = true;
-}
-
-void createFinalDepthBuffer(VulkanContext& context, VulkanSurfaceContext& surfaceContext,
-        VkFormat depthFormat) {
-    // Create an appropriately-sized device-only VkImage.
-    const auto size = surfaceContext.surfaceCapabilities.currentExtent;
-    VkImage depthImage;
-    VkImageCreateInfo imageInfo {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO,
-        .imageType = VK_IMAGE_TYPE_2D,
-        .format = depthFormat,
-        .extent = { size.width, size.height, 1 },
-        .mipLevels = 1,
-        .arrayLayers = 1,
-        .samples = VK_SAMPLE_COUNT_1_BIT,
-        .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-    };
-    VkResult error = vkCreateImage(context.device, &imageInfo, VKALLOC, &depthImage);
-    assert(!error && "Unable to create depth image.");
-
-    // Allocate memory for the VkImage and bind it.
-    VkMemoryRequirements memReqs;
-    vkGetImageMemoryRequirements(context.device, depthImage, &memReqs);
-    VkMemoryAllocateInfo allocInfo {
-        .sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO,
-        .allocationSize = memReqs.size,
-        .memoryTypeIndex = selectMemoryType(context, memReqs.memoryTypeBits,
-                VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT)
-    };
-    error = vkAllocateMemory(context.device, &allocInfo, nullptr,
-            &surfaceContext.depth.memory);
-    assert(!error && "Unable to allocate depth memory.");
-    error = vkBindImageMemory(context.device, depthImage, surfaceContext.depth.memory, 0);
-    assert(!error && "Unable to bind depth memory.");
-
-    // Create a VkImageView so that we can attach depth to the framebuffer.
-    VkImageView depthView;
-    VkImageViewCreateInfo viewInfo {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
-        .image = depthImage,
-        .viewType = VK_IMAGE_VIEW_TYPE_2D,
-        .format = depthFormat,
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-            .levelCount = 1,
-            .layerCount = 1,
-        },
-    };
-    error = vkCreateImageView(context.device, &viewInfo, VKALLOC, &depthView);
-    assert(!error && "Unable to create depth view.");
-
-    // Unlike the color attachments (which are double-buffered or triple-buffered), we only need one
-    // depth attachment in the entire chain.
-    surfaceContext.depth.view = depthView;
-    surfaceContext.depth.image = depthImage;
-    surfaceContext.depth.format = depthFormat;
-    surfaceContext.depth.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-
-    // Begin a new command buffer solely for the purpose of transitioning the image layout.
-    VkCommandBuffer cmdbuffer = acquireWorkCommandBuffer(context);
-
-    // Transition the depth image into an optimal layout.
-    VkImageMemoryBarrier barrier {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT,
-        .newLayout = surfaceContext.depth.layout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = depthImage,
-        .subresourceRange = {
-            .aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT,
-            .levelCount = 1,
-            .layerCount = 1,
-        },
-    };
-    vkCmdPipelineBarrier(cmdbuffer, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-            VK_PIPELINE_STAGE_EARLY_FRAGMENT_TESTS_BIT, 0, 0, nullptr, 0, nullptr, 1, &barrier);
-
-    flushWorkCommandBuffer(context);
 }
 
 VkImageLayout getTextureLayout(TextureUsage usage) {
@@ -747,6 +341,16 @@ VkImageLayout getTextureLayout(TextureUsage usage) {
 
     // Finally, the layout for an immutable texture is optimal read-only.
     return VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+}
+
+void createEmptyTexture(VulkanContext& context, VulkanStagePool& stagePool) {
+    context.emptyTexture = new VulkanTexture(context, SamplerType::SAMPLER_2D, 1,
+            TextureFormat::RGBA8, 1, 1, 1, 1,
+            TextureUsage::DEFAULT | TextureUsage::COLOR_ATTACHMENT |
+            TextureUsage::SUBPASS_INPUT, stagePool);
+    uint32_t black = 0;
+    PixelBufferDescriptor pbd(&black, 4, PixelDataFormat::RGBA, PixelDataType::UBYTE);
+    context.emptyTexture->update2DImage(pbd, 1, 1, 0);
 }
 
 } // namespace filament

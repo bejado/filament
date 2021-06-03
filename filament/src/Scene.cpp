@@ -21,7 +21,6 @@
 
 #include <private/filament/UibGenerator.h>
 
-#include "details/Culler.h"
 #include "details/Engine.h"
 #include "details/IndirectLight.h"
 #include "details/Skybox.h"
@@ -29,6 +28,7 @@
 #include <utils/compiler.h>
 #include <utils/EntityManager.h>
 #include <utils/Range.h>
+#include <utils/Systrace.h>
 #include <utils/Zip2Iterator.h>
 
 #include <algorithm>
@@ -50,6 +50,8 @@ FScene::~FScene() noexcept = default;
 void FScene::prepare(const mat4f& worldOriginTransform) {
     // TODO: can we skip this in most cases? Since we rely on indices staying the same,
     //       we could only skip, if nothing changed in the RCM.
+
+    SYSTRACE_CALL();
 
     FEngine& engine = mEngine;
     EntityManager& em = engine.getEntityManager();
@@ -165,8 +167,18 @@ void FScene::prepare(const mat4f& worldOriginTransform) {
     // some elements past the end of the array will be accessed by SIMD code, we need to make
     // sure the data is valid enough as not to produce errors such as divide-by-zero
     // (e.g. in computeLightRanges())
-    for (size_t i = lightData.size(), e = (lightData.size() + 3u) & ~3u; i < e; i++) {
+    for (size_t i = lightData.size(), e = lightDataCapacity; i < e; i++) {
         new(lightData.data<POSITION_RADIUS>() + i) float4{ 0, 0, 0, 1 };
+    }
+
+    // Purely for the benefit of MSAN, we can avoid uninitialized reads by zeroing out the
+    // unused scene elements between the end of the array and the rounded-up count.
+    if (UTILS_HAS_SANITIZE_MEMORY) {
+        for (size_t i = sceneData.size(), e = renderableDataCapacity; i < e; i++) {
+            sceneData.data<LAYERS>()[i] = 0;
+            sceneData.data<VISIBLE_MASK>()[i] = 0;
+            sceneData.data<VISIBILITY_STATE>()[i] = {};
+        }
     }
 }
 
@@ -200,10 +212,17 @@ void FScene::updateUBOs(utils::Range<uint32_t> visibleRenderables, backend::Hand
         mat3f m = mat3f::getTransformForNormals(model.upperLeft());
         m *= mat3f(1.0f / std::sqrt(max(float3{length2(m[0]), length2(m[1]), length2(m[2])})));
 
+        // The shading normal must be flipped for mirror transformations.
+        // Basically we're shading the other side of the polygon and therefore need to negate the
+        // normal, similar to what we already do to support double-sided lighting.
+        if (sceneData.elementAt<REVERSED_WINDING_ORDER>(i)) {
+            m = -m;
+        }
+
         UniformBuffer::setUniform(buffer,
                 offset + offsetof(PerRenderableUib, worldFromModelNormalMatrix), m);
 
-        // Note that we cast bools to uint32. Booleans are byte-sized in C++, but we need to
+        // Note that we cast bool to uint32_t. Booleans are byte-sized in C++, but we need to
         // initialize all 32 bits in the UBO field.
 
         FRenderableManager::Visibility visibility = sceneData.elementAt<VISIBILITY_STATE>(i);
@@ -240,7 +259,8 @@ void FScene::terminate(FEngine& engine) {
     mRenderableViewUbh.clear();
 }
 
-void FScene::prepareDynamicLights(const CameraInfo& camera, ArenaScope& rootArena, backend::Handle<backend::HwUniformBuffer> lightUbh) noexcept {
+void FScene::prepareDynamicLights(const CameraInfo& camera, ArenaScope& rootArena,
+        backend::Handle<backend::HwUniformBuffer> lightUbh) noexcept {
     FEngine::DriverApi& driver = mEngine.getDriverApi();
     FLightManager& lcm = mEngine.getLightManager();
     FScene::LightSoa& lightData = getLightData();
@@ -257,6 +277,9 @@ void FScene::prepareDynamicLights(const CameraInfo& camera, ArenaScope& rootAren
 
     ArenaScope arena(rootArena.getAllocator());
     size_t const size = lightData.size();
+    // number of point/spot lights
+    size_t positionalLightCount = size - DIRECTIONAL_LIGHTS_COUNT;
+    assert_invariant(positionalLightCount);
 
     // always allocate at least 4 entries, because the vectorized loops below rely on that
     float* const UTILS_RESTRICT distances = arena.allocate<float>((size + 3u) & 3u, CACHELINE_SIZE);
@@ -273,9 +296,6 @@ void FScene::prepareDynamicLights(const CameraInfo& camera, ArenaScope& rootAren
 
     // drop excess lights
     lightData.resize(std::min(size, CONFIG_MAX_LIGHT_COUNT + DIRECTIONAL_LIGHTS_COUNT));
-
-    // number of point/spot lights
-    size_t positionalLightCount = size - DIRECTIONAL_LIGHTS_COUNT;
 
     // compute the light ranges (needed when building light trees)
     float2* const zrange = lightData.data<FScene::SCREEN_SPACE_Z_RANGE>();
@@ -364,6 +384,12 @@ void FScene::remove(Entity entity) {
     mEntities.erase(entity);
 }
 
+void FScene::removeEntities(const Entity* entities, size_t count) {
+    for (size_t i = 0; i < count; ++i, ++entities) {
+        remove(*entities);
+    }
+}
+
 size_t FScene::getRenderableCount() const noexcept {
     FEngine& engine = mEngine;
     EntityManager& em = engine.getEntityManager();
@@ -407,8 +433,8 @@ bool FScene::hasContactShadows() const noexcept {
     // TODO: cache the the result of this Loop in the LightManager
     bool hasContactShadows = false;
     auto& lcm = mEngine.getLightManager();
-    auto pFirst = mLightData.begin<LIGHT_INSTANCE>();
-    auto pLast = mLightData.end<LIGHT_INSTANCE>();
+    const auto *pFirst = mLightData.begin<LIGHT_INSTANCE>();
+    const auto *pLast = mLightData.end<LIGHT_INSTANCE>();
     while (pFirst != pLast && !hasContactShadows) {
         if (pFirst->isValid()) {
             auto const& shadowOptions = lcm.getShadowOptions(*pFirst);
@@ -430,6 +456,14 @@ void Scene::setSkybox(Skybox* skybox) noexcept {
     upcast(this)->setSkybox(upcast(skybox));
 }
 
+Skybox* Scene::getSkybox() noexcept {
+    return upcast(this)->getSkybox();
+}
+
+Skybox const* Scene::getSkybox() const noexcept {
+    return upcast(this)->getSkybox();
+}
+
 void Scene::setIndirectLight(IndirectLight const* ibl) noexcept {
     upcast(this)->setIndirectLight(upcast(ibl));
 }
@@ -444,6 +478,10 @@ void Scene::addEntities(const Entity* entities, size_t count) {
 
 void Scene::remove(Entity entity) {
     upcast(this)->remove(entity);
+}
+
+void Scene::removeEntities(const Entity* entities, size_t count) {
+    upcast(this)->removeEntities(entities, count);
 }
 
 size_t Scene::getRenderableCount() const noexcept {

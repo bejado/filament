@@ -33,6 +33,9 @@ public:
     static UniformInterfaceBlock const& getLightsUib() noexcept;
     static UniformInterfaceBlock const& getShadowUib() noexcept;
     static UniformInterfaceBlock const& getPerRenderableBonesUib() noexcept;
+    static UniformInterfaceBlock const& getFroxelRecordUib() noexcept;
+    // When adding an UBO here, make sure to also update
+    //      FMaterial::getSurfaceProgramSlow and FMaterial::getPostProcessProgramSlow if needed
 };
 
 /*
@@ -68,6 +71,9 @@ struct PerViewUib { // NOLINT(cppcoreguidelines-pro-type-member-init)
     filament::math::float4 lightColorIntensity; // directional light
 
     filament::math::float4 sun; // cos(sunAngle), sin(sunAngle), 1/(sunAngle*HALO_SIZE-sunAngle), HALO_EXP
+
+    filament::math::float3 lightPosition;
+    uint32_t padding;
 
     filament::math::float3 lightDirection;
     uint32_t fParamsX; // stride-x
@@ -117,13 +123,16 @@ struct PerViewUib { // NOLINT(cppcoreguidelines-pro-type-member-init)
     // bit 8-11: cascade has visible shadows
     uint32_t cascades;
 
-    float aoSamplingQuality;     // 0: bilinear, !0: bilateral
+    float aoSamplingQualityAndEdgeDistance;     // 0: bilinear, !0: bilateral edge distance
     float aoReserved1;
     float aoReserved2;
     float aoReserved3;
 
+    math::float2 clipControl;
+    math::float2 padding1;
+
     // bring PerViewUib to 2 KiB
-    filament::math::float4 padding2[62];
+    filament::math::float4 padding2[60];
 };
 
 // 2 KiB == 128 float4s
@@ -153,6 +162,7 @@ struct LightsUib {
     uint32_t               shadow;            // { shadow bits (see ShadowInfo) }
     uint32_t               type;              // { 0=point, 1=spot }
 };
+static_assert(sizeof(LightsUib) == 64, "the actual UBO is an array of 256 mat4");
 
 // UBO for punctual (spot light) shadows.
 struct ShadowUib {
@@ -162,6 +172,15 @@ struct ShadowUib {
 
     filament::math::mat4f spotLightFromWorldMatrix[CONFIG_MAX_SHADOW_CASTING_SPOTS];
     filament::math::float4 directionShadowBias[CONFIG_MAX_SHADOW_CASTING_SPOTS]; // light direction, normal bias
+};
+
+// UBO froxel record buffer.
+struct FroxelRecordUib {
+    static const UniformInterfaceBlock& getUib() noexcept {
+        return UibGenerator::getFroxelRecordUib();
+    }
+
+    filament::math::uint4 records[1024];
 };
 
 // This is not the UBO proper, but just an element of a bone array.

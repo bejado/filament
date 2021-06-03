@@ -29,6 +29,7 @@
 
 #include <utils/compiler.h>
 #include <utils/Slice.h>
+#include <utils/debug.h>
 
 #include <limits>
 
@@ -194,7 +195,7 @@ public:
 
     template<typename T>
     static CommandKey makeField(T value, uint64_t mask, unsigned shift) noexcept {
-        assert(!((uint64_t(value) << shift) & ~mask));
+        assert_invariant(!((uint64_t(value) << shift) & ~mask));
         return uint64_t(value) << shift;
     }
 
@@ -219,16 +220,21 @@ public:
         uint8_t reserved = {};                                          // 1 byte
     };
 
+    static_assert(sizeof(PrimitiveInfo) == sizeof(void*) + 16);
+
     struct alignas(8) Command {     // 32 bytes
         CommandKey key = 0;         //  8 bytes
         PrimitiveInfo primitive;    // 24 bytes
         bool operator < (Command const& rhs) const noexcept { return key < rhs.key; }
         // placement new declared as "throw" to avoid the compiler's null-check
         inline void* operator new (std::size_t size, void* ptr) {
-            assert(ptr);
+            assert_invariant(ptr);
             return ptr;
         }
     };
+
+    static_assert(sizeof(Command) == 32);
+
     static_assert(std::is_trivially_destructible<Command>::value,
             "Command isn't trivially destructible");
 
@@ -238,9 +244,13 @@ public:
     static constexpr RenderFlags HAS_DYNAMIC_LIGHTING    = 0x04;
     static constexpr RenderFlags HAS_INVERSE_FRONT_FACES = 0x08;
     static constexpr RenderFlags HAS_FOG                 = 0x10;
+    static constexpr RenderFlags HAS_VSM                 = 0x20;
 
 
     RenderPass(FEngine& engine, utils::GrowingSlice<Command> commands) noexcept;
+    RenderPass(RenderPass const& rhs);
+    ~RenderPass() noexcept;
+
     void overridePolygonOffset(backend::PolygonOffset* polygonOffset) noexcept;
     void setGeometry(FScene::RenderableSoa const& soa, utils::Range<uint32_t> vr,
             backend::Handle<backend::HwUniformBuffer> uboHandle) noexcept;
@@ -311,7 +321,7 @@ private:
             RenderFlags renderFlags, FScene::VisibleMaskType visibilityMask,
             math::float3 cameraPosition, math::float3 cameraForward) noexcept;
 
-    static void setupColorCommand(Command& cmdDraw, bool hasDepthPass,
+    static void setupColorCommand(Command& cmdDraw,
             FMaterialInstance const* mi, bool inverseFrontFaces) noexcept;
 
     void recordDriverCommands(FEngine::DriverApi& driver, const Command* first,

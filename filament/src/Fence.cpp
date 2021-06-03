@@ -21,6 +21,7 @@
 #include <filament/Fence.h>
 
 #include <utils/Panic.h>
+#include <utils/debug.h>
 
 namespace filament {
 
@@ -62,7 +63,7 @@ void FFence::terminate(FEngine& engine) noexcept {
 
 UTILS_NOINLINE
 FenceStatus FFence::waitAndDestroy(FFence* fence, Mode mode) noexcept {
-    assert(fence);
+    assert_invariant(fence);
     FenceStatus status = fence->wait(mode, FENCE_WAIT_FOR_EVER);
     fence->mEngine.destroy(fence);
     return status;
@@ -96,7 +97,7 @@ FenceStatus FFence::wait(Mode mode, uint64_t timeout) noexcept {
             }
             engine.pumpPlatformEvents();
             const auto elapsed = std::chrono::system_clock::now() - startTime;
-            if (timeout != Fence::FENCE_WAIT_FOR_EVER && elapsed >= ns(timeout)) {
+            if (timeout != FENCE_WAIT_FOR_EVER && elapsed >= ns(timeout)) {
                 break;
             }
         }

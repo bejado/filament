@@ -71,12 +71,15 @@ public:
 
         Aabb wsShadowCastersVolume;
         Aabb wsShadowReceiversVolume;
+
+        // Position of the directional light in world space.
+        math::float3 wsLightPosition;
     };
 
     // Call once per frame to populate the CascadeParameters struct, then pass to update().
     // This computes values constant across all cascades.
     static void computeSceneCascadeParams(const FScene::LightSoa& lightData, size_t index,
-            FScene const* scene, filament::CameraInfo const& camera, uint8_t visibleLayers,
+            FView const& view, filament::CameraInfo const& camera, uint8_t visibleLayers,
             CascadeParameters& cascadeParams);
 
     // Call once per frame if the light, scene (or visible layers) or camera changes.
@@ -85,9 +88,8 @@ public:
             filament::CameraInfo const& camera, uint8_t visibleLayers,
             ShadowMapLayout layout, const CascadeParameters& cascadeParams) noexcept;
 
-    void render(backend::DriverApi& driver, backend::Handle<backend::HwRenderTarget> rt,
-            filament::Viewport const& viewport, utils::Range<uint32_t> const& range,
-            RenderPass& pass, FView& view) noexcept;
+    void render(backend::DriverApi& driver, utils::Range<uint32_t> const& range, RenderPass& pass,
+            FView& view) noexcept;
 
     // Do we have visible shadows. Valid after calling update().
     bool hasVisibleShadows() const noexcept { return mHasVisibleShadows; }
@@ -95,6 +97,10 @@ public:
     // Computes the transform to use in the shader to access the shadow map.
     // Valid after calling update().
     math::mat4f const& getLightSpaceMatrix() const noexcept { return mLightSpace; }
+
+    // Computes the transform to use in the shader to access the shadow map for VSM.
+    // Valid after calling update().
+    math::mat4f const& getLightSpaceMatrixVsm() const noexcept { return mLightSpaceVsm; }
 
     // return the size of a texel in world space (pre-warping)
     float getTexelSizeWorldSpace() const noexcept { return mTexelSizeWs; }
@@ -104,6 +110,8 @@ public:
 
     // use only for debugging
     FCamera const& getDebugCamera() const noexcept { return *mDebugCamera; }
+
+    backend::PolygonOffset getPolygonOffset() const noexcept { return mPolygonOffset; }
 
 private:
     struct CameraInfo {
@@ -201,6 +209,9 @@ private:
 
     math::mat4f getTextureCoordsMapping() const noexcept;
 
+    static math::mat4f computeVsmLightSpaceMatrix(const math::mat4f& lightSpace,
+            const math::mat4f& Mv, float zfar) noexcept;
+
     float texelSizeWorldSpace(const math::mat3f& worldToShadowTexture) const noexcept;
     float texelSizeWorldSpace(const math::mat4f& W, const math::mat4f& MbMtF) const noexcept;
 
@@ -221,6 +232,7 @@ private:
     FCamera* mCamera = nullptr;
     FCamera* mDebugCamera = nullptr;
     math::mat4f mLightSpace;
+    math::mat4f mLightSpaceVsm;
     float mTexelSizeWs = 0.0f;
 
     // set-up in update()

@@ -187,9 +187,15 @@ public:
         return mManager[i].squaredFallOffInv;
     }
 
+    float getFalloff(Instance i) const noexcept {
+        return getRadius(i);
+    }
+
     SpotParams const& getSpotParams(Instance i) const noexcept {
         return mManager[i].spotParams;
     }
+
+    float getSpotLightInnerCone(Instance i) const noexcept;
 
     float getCosOuterSquared(Instance i) const noexcept {
         return getSpotParams(i).cosOuterSquared;

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.19)
 project(filament-java)
 
 if (NOT FILAMENT_ENABLE_JAVA)
@@ -28,9 +28,9 @@ endif()
 # ==================================================================================================
 set(TARGET gltfio-jni)
 
-set(CXX_STANDARD "-std=c++14")
+set(CXX_STANDARD "-std=c++17")
 if (WIN32)
-    set(CXX_STANDARD "/std:c++14")
+    set(CXX_STANDARD "/std:c++17")
 endif()
 
 set(ANDROID_DIR ../../android)
@@ -52,8 +52,6 @@ set(JNI_SOURCE_FILES
 
 add_library(${TARGET} SHARED ${JNI_SOURCE_FILES})
 target_link_libraries(${TARGET} gltfio_core gltfio_resources)
-
-target_compile_options(${TARGET} PRIVATE $<$<PLATFORM_ID:Linux>:-fPIC>)
 
 set(INSTALL_TYPE LIBRARY)
 if (WIN32 OR CYGWIN)

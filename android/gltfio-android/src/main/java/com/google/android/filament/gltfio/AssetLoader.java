@@ -78,9 +78,10 @@ import java.nio.Buffer;
 public class AssetLoader {
     private long mNativeObject;
     private Engine mEngine;
+    private MaterialProvider mMaterialCache;
 
     /**
-     * Constructs an <code>AssetLoader </code>that can be used to create and destroy instances of
+     * Constructs an <code>AssetLoader</code> that can be used to create and destroy instances of
      * {@link FilamentAsset}.
      *
      * @param engine the engine that the loader should pass to builder objects
@@ -100,6 +101,7 @@ public class AssetLoader {
         }
 
         mEngine = engine;
+        mMaterialCache = generator;
     }
 
     /**
@@ -107,6 +109,7 @@ public class AssetLoader {
      */
     public void destroy() {
         nDestroyAssetLoader(mNativeObject);
+        mMaterialCache.destroyMaterials();
         mNativeObject = 0;
     }
 
@@ -129,12 +132,12 @@ public class AssetLoader {
     }
 
     /**
-     * Consumes the contents of a glTF 2.0 file and produces a master asset with one or more
+     * Consumes the contents of a glTF 2.0 file and produces a primary asset with one or more
      * instances.
      *
      * The given instance array must be sized to the desired number of instances. If successful,
-     * this method will populate the array with slave instances whose resources are shared with
-     * the master asset.
+     * this method will populate the array with secondary instances whose resources are shared with
+     * the primary asset.
      */
     @Nullable
     @SuppressWarnings("unused")
@@ -150,6 +153,32 @@ public class AssetLoader {
             instances[i] = new FilamentInstance(nativeInstances[i]);
         }
         return new FilamentAsset(mEngine, nativeAsset);
+    }
+
+    /**
+     * Adds a new instance to an instanced asset.
+     *
+     * Use this with caution. It is more efficient to pre-allocate a max number of instances, and
+     * gradually add them to the scene as needed. Instances can also be "recycled" by removing and
+     * re-adding them to the scene.
+     *
+     * NOTE: destroyInstance() does not exist because gltfio favors flat arrays for storage of
+     * entity lists and instance lists, which would be slow to shift. We also wish to discourage
+     * create/destroy churn, as noted above.
+     *
+     * This cannot be called after FilamentAsset#releaseSourceData().
+     * This cannot be called on a non-instanced asset.
+     * Animation is not supported in new instances.
+     * See also AssetLoader#createInstancedAsset().
+     */
+    @Nullable
+    @SuppressWarnings("unused")
+    public FilamentInstance createInstance(@NonNull FilamentAsset asset) {
+        long nativeInstance = nCreateInstance(mNativeObject, asset.getNativeObject());
+        if (nativeInstance == 0) {
+            return null;
+        }
+        return new FilamentInstance(nativeInstance);
     }
 
     /**
@@ -175,6 +204,7 @@ public class AssetLoader {
     private static native long nCreateAssetFromJson(long nativeLoader, Buffer buffer, int remaining);
     private static native long nCreateInstancedAsset(long nativeLoader, Buffer buffer, int remaining,
             long[] nativeInstances);
+    private static native long nCreateInstance(long nativeLoader, long nativeAsset);
     private static native void nEnableDiagnostics(long nativeLoader, boolean enable);
     private static native void nDestroyAsset(long nativeLoader, long nativeAsset);
 }

@@ -65,5 +65,8 @@ if [[ "$TARGET" == "release" ]]; then
     BUILD_SAMPLES="-k sample-gltf-viewer"
 fi
 
+# For testing purposes, only build arm64
+ANDROID_ABIS="-q arm64-v8a"
+
 pushd `dirname $0`/../.. > /dev/null
 FILAMENT_NDK_VERSION=${FILAMENT_NDK_VERSION} ./build.sh -p android $ANDROID_ABIS -c $BUILD_SAMPLES $GENERATE_ARCHIVES $BUILD_DEBUG $BUILD_RELEASE

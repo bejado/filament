@@ -52,6 +52,10 @@ function print_help {
     echo "        For macOS, this builds universal binaries for both Apple silicon and Intel-based Macs."
     echo "    -w"
     echo "        Build Web documents (compiles .md.html files to .html)."
+    echo "    -k sample1,sample2,..."
+    echo "        When building for Android, also build select sample APKs."
+    echo "        sampleN is an Android sample, e.g., sample-gltf-viewer."
+    echo "        This automatically performs a partial desktop build and install."
     echo ""
     echo "Build types:"
     echo "    release"
@@ -140,6 +144,9 @@ BUILD_JS_DOCS=false
 ISSUE_CMAKE_ALWAYS=false
 
 ISSUE_WEB_DOCS=false
+
+ANDROID_SAMPLES=()
+BUILD_ANDROID_SAMPLES=false
 
 RUN_TESTS=false
 
@@ -404,6 +411,11 @@ function build_android {
     local old_install_command=${INSTALL_COMMAND}
     INSTALL_COMMAND=
 
+    # When building the samples, we need to install the host tools.
+    if [[ "${BUILD_ANDROID_SAMPLES}" == "true" ]]; then
+        INSTALL_COMMAND=install
+    fi
+
     build_desktop "${MOBILE_HOST_TOOLS}"
 
     INSTALL_COMMAND=${old_install_command}
@@ -445,6 +457,15 @@ function build_android {
             -Pfilament_abis=${ABI_GRADLE_OPTION} \
             :filamat-android:assembleDebug
 
+        if [[ "${BUILD_ANDROID_SAMPLES}" == "true" ]]; then
+            for sample in ${ANDROID_SAMPLES}; do
+                ./gradlew \
+                    -Pfilament_dist_dir=../out/android-debug/filament \
+                    -Pfilament_abis=${ABI_GRADLE_OPTION} \
+                    :samples:${sample}:assembleDebug
+            done
+        fi
+
         if [[ "${INSTALL_COMMAND}" ]]; then
             echo "Installing out/filamat-android-debug.aar..."
             cp filamat-android/build/outputs/aar/filamat-android-lite-debug.aar ../out/
@@ -460,6 +481,14 @@ function build_android {
             echo "Installing out/filament-utils-android-debug.aar..."
             cp filament-utils-android/build/outputs/aar/filament-utils-android-lite-debug.aar ../out/
             cp filament-utils-android/build/outputs/aar/filament-utils-android-full-debug.aar ../out/filament-utils-android-debug.aar
+
+            if [[ "${BUILD_ANDROID_SAMPLES}" == "true" ]]; then
+                for sample in ${ANDROID_SAMPLES}; do
+                    echo "Installing out/${sample}-debug.apk"
+                    cp samples/${sample}/build/outputs/apk/debug/${sample}-debug-unsigned.apk \
+                        ../out/${sample}-debug.apk
+                done
+            fi
         fi
     fi
 
@@ -477,6 +506,15 @@ function build_android {
             -Pfilament_abis=${ABI_GRADLE_OPTION} \
             :filamat-android:assembleRelease
 
+        if [[ "${BUILD_ANDROID_SAMPLES}" == "true" ]]; then
+            for sample in ${ANDROID_SAMPLES}; do
+                ./gradlew \
+                    -Pfilament_dist_dir=../out/android-release/filament \
+                    -Pfilament_abis=${ABI_GRADLE_OPTION} \
+                    :samples:${sample}:assembleRelease
+            done
+        fi
+
         if [[ "${INSTALL_COMMAND}" ]]; then
             echo "Installing out/filamat-android-release.aar..."
             cp filamat-android/build/outputs/aar/filamat-android-lite-release.aar ../out/
@@ -492,6 +530,14 @@ function build_android {
             echo "Installing out/filament-utils-android-release.aar..."
             cp filament-utils-android/build/outputs/aar/filament-utils-android-lite-release.aar ../out/
             cp filament-utils-android/build/outputs/aar/filament-utils-android-full-release.aar ../out/filament-utils-android-release.aar
+
+            if [[ "${BUILD_ANDROID_SAMPLES}" == "true" ]]; then
+                for sample in ${ANDROID_SAMPLES}; do
+                    echo "Installing out/${sample}-release.apk"
+                    cp samples/${sample}/build/outputs/apk/release/${sample}-release-unsigned.apk \
+                        ../out/${sample}-release.apk
+                done
+            fi
         fi
     fi
 
@@ -689,7 +735,7 @@ function run_tests {
 
 pushd "$(dirname "$0")" > /dev/null
 
-while getopts ":hacCfijmp:q:uvslwtd" opt; do
+while getopts ":hacCfijmp:q:uvslwtdk:" opt; do
     case ${opt} in
         h)
             print_help
@@ -805,6 +851,10 @@ while getopts ":hacCfijmp:q:uvslwtd" opt; do
             ;;
         w)
             ISSUE_WEB_DOCS=true
+            ;;
+        k)
+            BUILD_ANDROID_SAMPLES=true
+            ANDROID_SAMPLES=$(echo "${OPTARG}" | tr ',' '\n')
             ;;
         \?)
             echo "Invalid option: -${OPTARG}" >&2

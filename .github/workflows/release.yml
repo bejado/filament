@@ -43,6 +43,7 @@ jobs:
           ${APKSIGNER} sign --ks filament.jks --key-pass=pass:${APK_KEYSTORE_PASS} --ks-pass=pass:${APK_KEYSTORE_PASS} --in ${IN_FILE} --out ${OUT_FILE}
           rm "${IN_FILE}"
         env:
+          TAG: ${{ steps.git_ref.outputs.tag }}
           APK_KEYSTORE_BASE64: ${{ secrets.APK_KEYSTORE_BASE64 }}
           APK_KEYSTORE_PASS: ${{ secrets.APK_KEYSTORE_PASS }}
       - name: Upload release assets

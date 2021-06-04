@@ -29,19 +29,19 @@ jobs:
       - uses: actions/checkout@v2.0.0
         with:
           ref: ${{ steps.git_ref.outputs.ref }}
+      - name: Run build script
+        run: |
+          cd build/android && printf "y" | ./build.sh release
       - name: Sign sample-gltf-viewer
         run: |
-          mkdir -p out
-          cp sample-gltf-viewer-release.apk out/
           echo "${APK_KEYSTORE_BASE64}" > filament.jks.base64
           base64 --decode filament.jks.base64 > filament.jks
-          md5 filament.jks
           BUILD_TOOLS_VERSION=30.0.3
           APKSIGNER=${ANDROID_HOME}/build-tools/${BUILD_TOOLS_VERSION}/apksigner
           IN_FILE="out/sample-gltf-viewer-release.apk"
           OUT_FILE="out/filament-gltf-viewer-${TAG}-android.apk"
           ${APKSIGNER} sign --ks filament.jks --key-pass=pass:${APK_KEYSTORE_PASS} --ks-pass=pass:${APK_KEYSTORE_PASS} --in ${IN_FILE} --out ${OUT_FILE}
-          rm out/sample-gltf-viewer-release.apk
+          rm "${IN_FILE}"
         env:
           APK_KEYSTORE_BASE64: ${{ secrets.APK_KEYSTORE_BASE64 }}
           APK_KEYSTORE_PASS: ${{ secrets.APK_KEYSTORE_PASS }}

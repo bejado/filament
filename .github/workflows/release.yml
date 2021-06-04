@@ -35,6 +35,7 @@ jobs:
           cp sample-gltf-viewer-release.apk out/
           echo ${APK_KEYSTORE_BASE64} > filament.jks.base64
           base64 --decode filament.jks.base64 > filament.jks
+          md5 filament.jks
           BUILD_TOOLS_VERSION=30.0.3
           APKSIGNER=${ANDROID_HOME}/build-tools/${BUILD_TOOLS_VERSION}/apksigner
           IN_FILE="out/sample-gltf-viewer-release.apk"

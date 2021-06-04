@@ -411,12 +411,25 @@ function build_android {
     local old_install_command=${INSTALL_COMMAND}
     INSTALL_COMMAND=
 
-    # When building the samples, we need to install the host tools.
-    if [[ "${BUILD_ANDROID_SAMPLES}" == "true" ]]; then
-        INSTALL_COMMAND=install
-    fi
-
     build_desktop "${MOBILE_HOST_TOOLS}"
+
+    # When building the samples, we need to partially "install" the host tools so Gradle can see
+    # them.
+    if [[ "${BUILD_ANDROID_SAMPLES}" == "true" ]]; then
+        if [[ "${ISSUE_DEBUG_BUILD}" == "true" ]]; then
+            mkdir -p out/debug/filament/bin
+            for tool in ${MOBILE_HOST_TOOLS}; do
+                cp out/cmake-debug/tools/${tool}/${tool} out/debug/filament/bin/
+            done
+        fi
+
+        if [[ "${ISSUE_RELEASE_BUILD}" == "true" ]]; then
+            mkdir -p out/release/filament/bin
+            for tool in ${MOBILE_HOST_TOOLS}; do
+                cp out/cmake-release/tools/${tool}/${tool} out/release/filament/bin/
+            done
+        fi
+    fi
 
     INSTALL_COMMAND=${old_install_command}
 

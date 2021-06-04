@@ -38,7 +38,9 @@ jobs:
           base64 --decode filament.jks.base64 > filament.jks
           BUILD_TOOLS_VERSION=30.0.3
           APKSIGNER=${ANDROID_HOME}/build-tools/${BUILD_TOOLS_VERSION}/apksigner
-          ${APKSIGNER} sign --ks filament.jks --in out/sample-gltf-viewer-release.apk --out out/filament-gltf-viewer-${TAG}-android.apk
+          IN_FILE="out/sample-gltf-viewer-release.apk"
+          OUT_FILE="out/filament-gltf-viewer-${TAG}-android.apk"
+          ${APKSIGNER} sign --ks filament.jks --key-pass=env:APK_KEYSTORE_PASS --ks-pass=env:APK_KEYSTORE_PASS --in ${IN_FILE} --out ${OUT_FILE}
           rm out/sample-gltf-viewer-release.apk
       - name: Upload release assets
         run: |
@@ -56,3 +58,4 @@ jobs:
           TAG: ${{ steps.git_ref.outputs.tag }}
           GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
           APK_KEYSTORE_BASE64: ${{ secrets.APK_KEYSTORE_BASE64 }}
+          APK_KEYSTORE_PASS: ${{ secrets.APK_KEYSTORE_PASS }}

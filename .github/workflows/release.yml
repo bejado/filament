@@ -167,7 +167,7 @@ jobs:
           echo "Hello world" > out/filament-windows.txt
       - name: Upload release assets
         run: |
-          xargs -L 1 sudo pip3 install < build/common/requirements.txt
+          xargs -L 1 pip3 install < build/common/requirements.txt
           python build/common/upload-assets.py ${TAG} out/*.txt
         shell: bash
         env:

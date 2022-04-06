@@ -51,7 +51,7 @@ jobs:
           echo "Hello world" > out/filament-${WORKFLOW_OS}.txt
       - name: Upload release assets
         run: |
-          xargs -L 1 pip3 install -I < build/common/requirements.txt
+          xargs -L 1 pip3 install -I --user < build/common/requirements.txt
           if [ -f out/filament-release-darwin.tgz ]; then mv out/filament-release-darwin.tgz out/filament-${TAG}-mac.tgz; fi;
           if [ -f out/filament-release-linux.tgz ]; then mv out/filament-release-linux.tgz out/filament-${TAG}-linux.tgz; fi;
           python3 build/common/upload-assets.py ${TAG} out/*.txt
@@ -81,7 +81,7 @@ jobs:
           echo "Hello world" > out/filament-web.txt
       - name: Upload release assets
         run: |
-          xargs -L 1 pip3 install -I < build/common/requirements.txt
+          xargs -L 1 pip3 install -I --user < build/common/requirements.txt
           mv out/filament-release-web.tgz out/filament-${TAG}-web.tgz
           python3 build/common/upload-assets.py ${TAG} out/*.txt
         env:
@@ -110,7 +110,7 @@ jobs:
           echo "Hello world" > out/filament-android.txt
       - name: Upload release assets
         run: |
-          xargs -L 1 pip3 install -I < build/common/requirements.txt
+          xargs -L 1 pip3 install -I --user < build/common/requirements.txt
           python3 build/common/upload-assets.py ${TAG} out/*.txt
         env:
           TAG: ${{ steps.git_ref.outputs.tag }}
@@ -138,7 +138,7 @@ jobs:
           echo "Hello world" > out/filament-ios.txt
       - name: Upload release assets
         run: |
-          xargs -L 1 pip3 install -I < build/common/requirements.txt
+          xargs -L 1 pip3 install -I --user < build/common/requirements.txt
           python3 build/common/upload-assets.py ${TAG} out/*.txt
         env:
           TAG: ${{ steps.git_ref.outputs.tag }}
@@ -167,7 +167,7 @@ jobs:
           echo "Hello world" > out/filament-windows.txt
       - name: Upload release assets
         run: |
-          xargs -L 1 pip3 install -I < build/common/requirements.txt
+          xargs -L 1 pip3 install -I --user < build/common/requirements.txt
           python build/common/upload-assets.py ${TAG} out/*.txt
         shell: bash
         env:

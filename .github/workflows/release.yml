@@ -49,127 +49,14 @@ jobs:
           mkdir -p out
           WORKFLOW_OS=`echo \`uname\` | sed "s/Darwin/mac/" | tr [:upper:] [:lower:]`
           echo "Hello world" > out/filament-${WORKFLOW_OS}.txt
-      - name: Upload release assets
-        run: |
-          xargs -L 1 sudo pip3 install < build/common/requirements.txt
           if [ -f out/filament-release-darwin.tgz ]; then mv out/filament-release-darwin.tgz out/filament-${TAG}-mac.tgz; fi;
           if [ -f out/filament-release-linux.tgz ]; then mv out/filament-release-linux.tgz out/filament-${TAG}-linux.tgz; fi;
-          python3 build/common/upload-assets.py ${TAG} out/*.txt
+      - uses: actions/github-script@v6
         env:
-          TAG: ${{ steps.git_ref.outputs.tag }}
-          GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
-
-  build-web:
-    name: build-web
-    runs-on: macos-latest
-    if: github.event_name == 'release' || github.event.inputs.platform == 'web'
-
-    steps:
-      - name: Decide Git ref
-        id: git_ref
-        run: |
-          REF=${RELEASE_TAG:-${GITHUB_REF}}
-          TAG=${REF##*/}
-          echo ::set-output name=ref::${REF}
-          echo ::set-output name=tag::${TAG}
-      - uses: actions/checkout@v2.0.0
+          TAG: '${{process.TAG}}'
         with:
-          ref: ${{ steps.git_ref.outputs.ref }}
-      - name: Run build script
-        run: |
-          mkdir -p out
-          echo "Hello world" > out/filament-web.txt
-      - name: Upload release assets
-        run: |
-          xargs -L 1 sudo pip3 install < build/common/requirements.txt
-          mv out/filament-release-web.tgz out/filament-${TAG}-web.tgz
-          python3 build/common/upload-assets.py ${TAG} out/*.txt
-        env:
-          TAG: ${{ steps.git_ref.outputs.tag }}
-          GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
-
-  build-android:
-    name: build-android
-    runs-on: macos-latest
-    if: github.event_name == 'release' || github.event.inputs.platform == 'android'
-
-    steps:
-      - name: Decide Git ref
-        id: git_ref
-        run: |
-          REF=${RELEASE_TAG:-${GITHUB_REF}}
-          TAG=${REF##*/}
-          echo ::set-output name=ref::${REF}
-          echo ::set-output name=tag::${TAG}
-      - uses: actions/checkout@v2.0.0
-        with:
-          ref: ${{ steps.git_ref.outputs.ref }}
-      - name: Run build script
-        run: |
-          mkdir -p out
-          echo "Hello world" > out/filament-android.txt
-      - name: Upload release assets
-        run: |
-          xargs -L 1 sudo pip3 install < build/common/requirements.txt
-          python3 build/common/upload-assets.py ${TAG} out/*.txt
-        env:
-          TAG: ${{ steps.git_ref.outputs.tag }}
-          GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
-
-  build-ios:
-    name: build-ios
-    runs-on: macos-latest
-    if: github.event_name == 'release' || github.event.inputs.platform == 'ios'
-
-    steps:
-      - name: Decide Git ref
-        id: git_ref
-        run: |
-          REF=${RELEASE_TAG:-${GITHUB_REF}}
-          TAG=${REF##*/}
-          echo ::set-output name=ref::${REF}
-          echo ::set-output name=tag::${TAG}
-      - uses: actions/checkout@v2.0.0
-        with:
-          ref: ${{ steps.git_ref.outputs.ref }}
-      - name: Run build script
-        run: |
-          mkdir -p out
-          echo "Hello world" > out/filament-ios.txt
-      - name: Upload release assets
-        run: |
-          xargs -L 1 sudo pip3 install < build/common/requirements.txt
-          python3 build/common/upload-assets.py ${TAG} out/*.txt
-        env:
-          TAG: ${{ steps.git_ref.outputs.tag }}
-          GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
-
-  build-windows:
-    name: build-windows
-    runs-on: windows-2019
-    if: github.event_name == 'release' || github.event.inputs.platform == 'windows'
-
-    steps:
-      - name: Decide Git ref
-        id: git_ref
-        run: |
-          REF=${RELEASE_TAG:-${GITHUB_REF}}
-          TAG=${REF##*/}
-          echo ::set-output name=ref::${REF}
-          echo ::set-output name=tag::${TAG}
-        shell: bash
-      - uses: actions/checkout@v2.0.0
-        with:
-          ref: ${{ steps.git_ref.outputs.ref }}
-      - name: Run build script
-        run: |
-          mkdir -p out
-          echo "Hello world" > out/filament-windows.txt
-      - name: Upload release assets
-        run: |
-          pip3 install PyGithub
-          python build/common/upload-assets.py ${TAG} out/*.txt
-        shell: bash
-        env:
-          TAG: ${{ steps.git_ref.outputs.tag }}
-          GITHUB_API_KEY: ${{ secrets.GITHUB_API_KEY }}
+          script: |
+            const upload = require('./upload-release-assets.js');
+            const { TAG } = process.env;
+            const globber = await glob.create('out/*.txt');
+            await upload({ github, context }, await globber.glob(), TAG);

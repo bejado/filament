@@ -45,6 +45,8 @@ jobs:
         with:
           ref: ${{ steps.git_ref.outputs.ref }}
       - name: Run build script
+        env:
+          TAG: ${{ steps.git_ref.outputs.tag }}
         run: |
           mkdir -p out
           WORKFLOW_OS=`echo \`uname\` | sed "s/Darwin/mac/" | tr [:upper:] [:lower:]`
@@ -78,10 +80,12 @@ jobs:
         with:
           ref: ${{ steps.git_ref.outputs.ref }}
       - name: Run build script
+        env:
+          TAG: ${{ steps.git_ref.outputs.tag }}
         run: |
           mkdir -p out
           echo "Hello world" > out/filament-web.txt
-          mv out/filament-release-web.tgz out/filament-${TAG}-web.tgz
+          # mv out/filament-release-web.tgz out/filament-${TAG}-web.tgz
       - uses: actions/github-script@v6
         env:
           TAG: ${{ steps.git_ref.outputs.tag }}

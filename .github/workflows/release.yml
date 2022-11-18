@@ -53,7 +53,7 @@ jobs:
           if [ -f out/filament-release-linux.tgz ]; then mv out/filament-release-linux.tgz out/filament-${TAG}-linux.tgz; fi;
       - uses: actions/github-script@v6
         env:
-          TAG: '${{process.TAG}}'
+          TAG: '${{env.TAG}}'
         with:
           script: |
             const upload = require('./upload-release-assets.js');

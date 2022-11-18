@@ -60,3 +60,125 @@ jobs:
             const { TAG } = process.env;
             const globber = await glob.create('out/*.txt');
             await upload({ github, context }, await globber.glob(), TAG);
+
+  build-web:
+    name: build-web
+    runs-on: macos-latest
+    if: github.event_name == 'release' || github.event.inputs.platform == 'web'
+
+    steps:
+      - name: Decide Git ref
+        id: git_ref
+        run: |
+          REF=${RELEASE_TAG:-${GITHUB_REF}}
+          TAG=${REF##*/}
+          echo ::set-output name=ref::${REF}
+          echo ::set-output name=tag::${TAG}
+      - uses: actions/checkout@v2.0.0
+        with:
+          ref: ${{ steps.git_ref.outputs.ref }}
+      - name: Run build script
+        run: |
+          mkdir -p out
+          echo "Hello world" > out/filament-web.txt
+          mv out/filament-release-web.tgz out/filament-${TAG}-web.tgz
+      - uses: actions/github-script@v6
+        env:
+          TAG: ${{ steps.git_ref.outputs.tag }}
+        with:
+          script: |
+            const upload = require('./build/common/upload-release-assets');
+            const { TAG } = process.env;
+            const globber = await glob.create('out/*.txt');
+            await upload({ github, context }, await globber.glob(), TAG);
+
+  build-android:
+    name: build-android
+    runs-on: macos-latest
+    if: github.event_name == 'release' || github.event.inputs.platform == 'android'
+
+    steps:
+      - name: Decide Git ref
+        id: git_ref
+        run: |
+          REF=${RELEASE_TAG:-${GITHUB_REF}}
+          TAG=${REF##*/}
+          echo ::set-output name=ref::${REF}
+          echo ::set-output name=tag::${TAG}
+      - uses: actions/checkout@v2.0.0
+        with:
+          ref: ${{ steps.git_ref.outputs.ref }}
+      - name: Run build script
+        run: |
+          mkdir -p out
+          echo "Hello world" > out/filament-android.txt
+      - uses: actions/github-script@v6
+        env:
+          TAG: ${{ steps.git_ref.outputs.tag }}
+        with:
+          script: |
+            const upload = require('./build/common/upload-release-assets');
+            const { TAG } = process.env;
+            const globber = await glob.create('out/*.txt');
+            await upload({ github, context }, await globber.glob(), TAG);
+
+  build-ios:
+    name: build-ios
+    runs-on: macos-latest
+    if: github.event_name == 'release' || github.event.inputs.platform == 'ios'
+
+    steps:
+      - name: Decide Git ref
+        id: git_ref
+        run: |
+          REF=${RELEASE_TAG:-${GITHUB_REF}}
+          TAG=${REF##*/}
+          echo ::set-output name=ref::${REF}
+          echo ::set-output name=tag::${TAG}
+      - uses: actions/checkout@v2.0.0
+        with:
+          ref: ${{ steps.git_ref.outputs.ref }}
+      - name: Run build script
+        run: |
+          mkdir -p out
+          echo "Hello world" > out/filament-ios.txt
+      - uses: actions/github-script@v6
+        env:
+          TAG: ${{ steps.git_ref.outputs.tag }}
+        with:
+          script: |
+            const upload = require('./build/common/upload-release-assets');
+            const { TAG } = process.env;
+            const globber = await glob.create('out/*.txt');
+            await upload({ github, context }, await globber.glob(), TAG);
+
+  build-windows:
+    name: build-windows
+    runs-on: windows-2019
+    if: github.event_name == 'release' || github.event.inputs.platform == 'windows'
+
+    steps:
+      - name: Decide Git ref
+        id: git_ref
+        run: |
+          REF=${RELEASE_TAG:-${GITHUB_REF}}
+          TAG=${REF##*/}
+          echo ::set-output name=ref::${REF}
+          echo ::set-output name=tag::${TAG}
+        shell: bash
+      - uses: actions/checkout@v2.0.0
+        with:
+          ref: ${{ steps.git_ref.outputs.ref }}
+      - name: Run build script
+        run: |
+          mkdir -p out
+          echo "Hello world" > out/filament-windows.txt
+      - uses: actions/github-script@v6
+        env:
+          TAG: ${{ steps.git_ref.outputs.tag }}
+        with:
+          script: |
+            const upload = require('./build/common/upload-release-assets');
+            const { TAG } = process.env;
+            const globber = await glob.create('out/*.txt');
+            await upload({ github, context }, await globber.glob(), TAG);

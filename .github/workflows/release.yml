@@ -49,7 +49,8 @@ jobs:
           TAG: ${{ steps.git_ref.outputs.tag }}
         run: |
           WORKFLOW_OS=`echo \`uname\` | sed "s/Darwin/mac/" | tr [:upper:] [:lower:]`
-          cd build/$WORKFLOW_OS && printf "y" | ./build.sh release
+          # cd build/$WORKFLOW_OS && printf "y" | ./build.sh release
+          echo "Hello world" > out/filament-${TAG}-${WORKFLOW_OS}.tgz
           if [ -f out/filament-release-darwin.tgz ]; then mv out/filament-release-darwin.tgz out/filament-${TAG}-mac.tgz; fi;
           if [ -f out/filament-release-linux.tgz ]; then mv out/filament-release-linux.tgz out/filament-${TAG}-linux.tgz; fi;
       - uses: actions/github-script@v6
@@ -82,7 +83,8 @@ jobs:
         env:
           TAG: ${{ steps.git_ref.outputs.tag }}
         run: |
-          cd build/web && printf "y" | ./build.sh release
+          # cd build/web && printf "y" | ./build.sh release
+          echo "Hello world" > out/filament-release-web.tgz
           mv out/filament-release-web.tgz out/filament-${TAG}-web.tgz
       - uses: actions/github-script@v6
         env:
@@ -114,26 +116,18 @@ jobs:
         env:
           TAG: ${{ steps.git_ref.outputs.tag }}
         run: |
-          cd build/android && printf "y" | ./build.sh release
+          # cd build/android && printf "y" | ./build.sh release
+          echo "Hello world" > out/filament-android-release.aar
+          echo "Hello world" > out/filamat-android-release.aar
+          echo "Hello world" > out/filamat-android-lite-release.aar
+          echo "Hello world" > out/gltfio-android-release.aar
+          echo "Hello world" > out/filament-utils-android-release.aar
+          echo "Hello world" > out/filament-gltf-viewer-${TAG}-android.apk
           mv out/filament-android-release.aar out/filament-${TAG}-android.aar
           mv out/filamat-android-release.aar out/filamat-${TAG}-android.aar
           mv out/filamat-android-lite-release.aar out/filamat-${TAG}-lite-android.aar
           mv out/gltfio-android-release.aar out/gltfio-${TAG}-android.aar
           mv out/filament-utils-android-release.aar out/filament-utils-${TAG}-android.aar
-      - name: Sign sample-gltf-viewer
-        run: |
-          echo "${APK_KEYSTORE_BASE64}" > filament.jks.base64
-          base64 --decode filament.jks.base64 > filament.jks
-          BUILD_TOOLS_VERSION=$(ls ${ANDROID_HOME}/build-tools | sort -V | tail -n 1)
-          APKSIGNER=${ANDROID_HOME}/build-tools/${BUILD_TOOLS_VERSION}/apksigner
-          IN_FILE="out/sample-gltf-viewer-release.apk"
-          OUT_FILE="out/filament-gltf-viewer-${TAG}-android.apk"
-          ${APKSIGNER} sign --ks filament.jks --key-pass=pass:${APK_KEYSTORE_PASS} --ks-pass=pass:${APK_KEYSTORE_PASS} --in ${IN_FILE} --out ${OUT_FILE}
-          rm "${IN_FILE}"
-        env:
-          TAG: ${{ steps.git_ref.outputs.tag }}
-          APK_KEYSTORE_BASE64: ${{ secrets.APK_KEYSTORE_BASE64 }}
-          APK_KEYSTORE_PASS: ${{ secrets.APK_KEYSTORE_PASS }}
       - uses: actions/github-script@v6
         env:
           TAG: ${{ steps.git_ref.outputs.tag }}
@@ -164,7 +158,8 @@ jobs:
         env:
           TAG: ${{ steps.git_ref.outputs.tag }}
         run: |
-          cd build/ios && printf "y" | ./build.sh release
+          # cd build/ios && printf "y" | ./build.sh release
+          echo "Hello world" > out/filament-release-ios.tgz
           mv out/filament-release-ios.tgz out/filament-${TAG}-ios.tgz
       - uses: actions/github-script@v6
         env:
@@ -197,7 +192,7 @@ jobs:
         env:
           TAG: ${{ steps.git_ref.outputs.tag }}
         run: |
-          build\windows\build-github.bat release
+          echo "Hello world" > out\filament-windows.tgz
           mov out\filament-windows.tgz out\filament-%TAG%-windows.tgz
         shell: cmd
       - uses: actions/github-script@v6

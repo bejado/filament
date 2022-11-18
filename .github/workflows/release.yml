@@ -56,7 +56,7 @@ jobs:
           TAG: '${{env.TAG}}'
         with:
           script: |
-            const upload = require('./upload-release-assets.js');
+            const upload = require('build/common/upload-release-assets');
             const { TAG } = process.env;
             const globber = await glob.create('out/*.txt');
             await upload({ github, context }, await globber.glob(), TAG);

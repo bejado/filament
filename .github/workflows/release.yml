@@ -83,6 +83,10 @@ jobs:
           TAG: ${{ steps.git_ref.outputs.tag }}
         run: |
           cd build/web && printf "y" | ./build.sh release
+          pwd
+          ls -la
+          ls -la out
+          find filament-release-web.tgz || echo "Could not find artifact"
           mv out/filament-release-web.tgz out/filament-${TAG}-web.tgz
       - uses: actions/github-script@v6
         env:
@@ -115,6 +119,9 @@ jobs:
           TAG: ${{ steps.git_ref.outputs.tag }}
         run: |
           cd build/android && printf "y" | ./build.sh release
+          ls -la
+          ls -la out
+          find filament-android-release.aar || echo "Could not find artifact"
           mv out/filament-android-release.aar out/filament-${TAG}-android.aar
           mv out/filamat-android-release.aar out/filamat-${TAG}-android.aar
           mv out/filamat-android-lite-release.aar out/filamat-${TAG}-lite-android.aar
@@ -165,6 +172,10 @@ jobs:
           TAG: ${{ steps.git_ref.outputs.tag }}
         run: |
           cd build/ios && printf "y" | ./build.sh release
+          pwd
+          ls -la
+          ls -la out
+          find filament-release-ios.tgz || echo "Could not find artifact"
           mv out/filament-release-ios.tgz out/filament-${TAG}-ios.tgz
       - uses: actions/github-script@v6
         env:

@@ -27,6 +27,6 @@ jobs:
       - name: Deploy to npm
         run: |
           cd out/cmake-webgl-release/web/filament-js
-          npm publish --dry-run
+          npm publish
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

@@ -73,7 +73,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: filament-android-release
-          path: out/filament-android-release-linux.tgz
+          path: out/filament-android-release-native.tgz
 
   sonatype-publish:
     name: sonatype-publish
@@ -104,7 +104,7 @@ jobs:
       - name: Unzip Android Release
         run: |
           mkdir -p out/android-release
-          tar -xzvf filament-android-release-linux.tgz -C out/android-release/
+          tar -xzvf filament-android-release-native.tgz -C out/android-release/
       - name: Publish To Sonatype
         run: |
           cd android

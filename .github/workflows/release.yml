@@ -31,7 +31,7 @@ on:
 jobs:
   build-android:
     name: build-android
-    runs-on: 'ubuntu-24.04-16core'
+    runs-on: 'ubuntu-latest'
     if: github.event_name == 'release' || github.event.inputs.platform == 'android'
 
     steps:
@@ -77,7 +77,7 @@ jobs:
 
   sonatype-publish:
     name: sonatype-publish
-    runs-on: 'ubuntu-24.04-16core'
+    runs-on: 'ubuntu-latest'
     needs: build-android
     if: github.event_name == 'release' || github.event.inputs.platform == 'android'
 

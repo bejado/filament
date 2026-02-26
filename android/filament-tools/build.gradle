@@ -41,24 +41,24 @@ platforms.each { platform, config ->
     }
 }
 
-publishing {
-    publications {
-        tools.each { toolName ->
-            create(toolName, MavenPublication) {
-                artifactId = toolName
+// publishing {
+//     publications {
+//         tools.each { toolName ->
+//             create(toolName, MavenPublication) {
+//                 artifactId = toolName
 
-                platforms.each { platform, config ->
-                    def extractDir = file("${buildDir}/extracted/filament-v${VERSION_NAME}-${platform}")
-                    def archivePath = config.path(toolName)
-                    def exeName = new File(archivePath).name
+//                 platforms.each { platform, config ->
+//                     def extractDir = file("${buildDir}/extracted/filament-v${VERSION_NAME}-${platform}")
+//                     def archivePath = config.path(toolName)
+//                     def exeName = new File(archivePath).name
 
-                    artifact(new File(extractDir, exeName)) {
-                        classifier = config.classifier
-                        extension = "exe"
-                        builtBy tasks.named("extractTools${platform.capitalize()}")
-                    }
-                }
-            }
-        }
-    }
-}
+//                     artifact(new File(extractDir, exeName)) {
+//                         classifier = config.classifier
+//                         extension = "exe"
+//                         builtBy tasks.named("extractTools${platform.capitalize()}")
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }

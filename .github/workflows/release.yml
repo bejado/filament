@@ -54,7 +54,7 @@ jobs:
         env:
           TAG: ${{ steps.git_ref.outputs.tag }}
         run: |
-          cd build/android && printf "y" | ./build.sh release armeabi-v7a,arm64-v8a,x86,x86_64
+          cd build/android && printf "y" | ./build.sh release arm64-v8a
           cd ../..
           mv out/filament-android-release.aar out/filament-${TAG}-android.aar
           mv out/filamat-android-release.aar out/filamat-${TAG}-android.aar
@@ -108,7 +108,7 @@ jobs:
       - name: Publish To Sonatype
         run: |
           cd android
-          ./gradlew publishToSonatype closeSonatypeStagingRepository
+          ./gradlew -Pcom.google.android.filament.abis=arm64-v8a publishToSonatype closeSonatypeStagingRepository
         env:
           ORG_GRADLE_PROJECT_sonatypeUsername: ${{ secrets.SONATYPE_USERNAME }}
           ORG_GRADLE_PROJECT_sonatypePassword: ${{ secrets.SONATYPE_PASSWORD }}

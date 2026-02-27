@@ -50,17 +50,11 @@ jobs:
           distribution: 'temurin'
           java-version: '17'
       - uses: ./.github/actions/linux-prereq
-      - name: Run build script
+      - name: Fake Build
         env:
           TAG: ${{ steps.git_ref.outputs.tag }}
         run: |
-          cd build/android && printf "y" | ./build.sh release arm64-v8a
-          cd ../..
-          mv out/filament-android-release.aar out/filament-${TAG}-android.aar
-          mv out/filamat-android-release.aar out/filamat-${TAG}-android.aar
-          mv out/gltfio-android-release.aar out/gltfio-${TAG}-android.aar
-          mv out/filament-utils-android-release.aar out/filament-utils-${TAG}-android.aar
-          mv out/filament-android-release-linux.tgz out/filament-${TAG}-android-native.tgz
+          mv filament-v1.69.4-android-native.tgz out/filament-${TAG}-android-native.tgz
       - uses: actions/github-script@v6
         env:
           TAG: ${{ steps.git_ref.outputs.tag }}

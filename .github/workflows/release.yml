@@ -99,7 +99,7 @@ jobs:
       - name: Unzip Android Release
         run: |
           mkdir -p out/android-release
-          tar -xzvf filament-*-android-release-native.tgz -C out/android-release/
+          tar -xzvf filament-*-android-native.tgz -C out/android-release/
       - name: Publish To Sonatype
         run: |
           cd android

@@ -99,7 +99,9 @@ jobs:
       - name: Unzip Android Release
         run: |
           mkdir -p out/android-release
-          tar -xzvf filament-*-android-native.tgz -C out/android-release/
+          tar -xzvf filament-${TAG}-android-native.tgz -C out/android-release/
+        env:
+          TAG: ${{ steps.git_ref.outputs.tag }}
       - name: Publish To Sonatype
         run: |
           cd android

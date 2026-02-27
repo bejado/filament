@@ -54,6 +54,7 @@ jobs:
         env:
           TAG: ${{ steps.git_ref.outputs.tag }}
         run: |
+          mkdir out
           mv filament-v1.69.4-android-native.tgz out/filament-${TAG}-android-native.tgz
       - uses: actions/github-script@v6
         env:

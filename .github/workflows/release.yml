@@ -95,6 +95,7 @@ jobs:
             --pattern 'filament-*-android-native.tgz'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.git_ref.outputs.tag }}
       - name: Unzip Android Release
         run: |
           mkdir -p out/android-release
